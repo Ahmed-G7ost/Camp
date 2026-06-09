@@ -1,0 +1,91 @@
+{
+  "project_name": "مخيم العائدين (Camp of the Returnees) Admin Dashboard",
+  "theme": "Light",
+  "archetype": "1 (Organic & Earthy / Trust) + Selective Glassmorphism",
+  "global_rules": {
+    "direction": "RTL",
+    "html_attributes": "dir='rtl' lang='ar'",
+    "css_utilities": "CRITICAL: Use logical properties ONLY: ps-*, pe-*, ms-*, me-*, text-start, text-end, rounded-s-*, border-e-*. DO NOT use pl-, pr-, ml-, mr-, text-left, text-right.",
+    "testing": "All interactive/informational elements MUST have a data-testid attribute (kebab-case, role-based)."
+  },
+  "typography": {
+    "fonts": {
+      "heading": "'Cairo', sans-serif",
+      "body": "'Tajawal', sans-serif"
+    },
+    "import_url": "https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Tajawal:wght@400;500;700&display=swap",
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl font-cairo font-bold tracking-tight text-slate-900",
+      "h2": "text-2xl sm:text-3xl font-cairo font-bold tracking-tight text-slate-800",
+      "h3": "text-xl sm:text-2xl font-cairo font-semibold text-slate-800",
+      "body": "text-base font-tajawal text-slate-600 leading-relaxed",
+      "small_label": "text-xs font-tajawal font-bold uppercase tracking-widest text-slate-500"
+    }
+  },
+  "colors": {
+    "background": {
+      "app": "bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-50 via-slate-50 to-orange-50/20",
+      "solid_fallback": "bg-slate-50"
+    },
+    "surfaces": {
+      "glass_card": "bg-white/70 backdrop-blur-xl border border-white/60 shadow-[0_8px_32px_rgba(0,0,0,0.04)]",
+      "glass_header": "bg-white/60 backdrop-blur-2xl border-b border-white/40 shadow-sm",
+      "solid_card": "bg-white border border-slate-200 shadow-sm"
+    },
+    "primary": {
+      "DEFAULT": "#2563eb",
+      "hover": "#1d4ed8",
+      "tailwind_classes": "bg-blue-600 text-white hover:bg-blue-700"
+    },
+    "accent": {
+      "warning": "#d97706",
+      "success": "#16a34a"
+    },
+    "text": {
+      "primary": "text-slate-900",
+      "secondary": "text-slate-600",
+      "muted": "text-slate-400"
+    }
+  },
+  "layout_spacing": {
+    "container": "w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "grid_dashboard": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6",
+    "padding": "Generous spacing. Internal card padding should be p-6 or p-8 to prevent collision."
+  },
+  "components": {
+    "button": "Rounded-xl font-tajawal font-bold transition-all duration-200 focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2 disabled:opacity-50",
+    "inputs": "bg-white/50 backdrop-blur-sm border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/50 transition-all font-tajawal text-slate-900",
+    "table": "Use solid surfaces for tables to ensure readability. bg-white border border-slate-200 rounded-2xl overflow-hidden. Table headers in font-cairo.",
+    "badges": "Inline flex items-center px-2.5 py-0.5 rounded-full text-xs font-tajawal font-medium"
+  },
+  "animations": {
+    "hover": "transition-all duration-300 ease-out",
+    "entrance": "Use framer-motion for staggering list items and fade-up on page load. Initial: opacity-0 translate-y-4, Animate: opacity-100 translate-y-0."
+  },
+  "icons": {
+    "library": "lucide-react",
+    "rules": "Ensure directional icons (arrows, chevrons) are flipped for RTL using transform rotate-180 or use Lucide's RTL-aware icons if available."
+  },
+  "media": {
+    "login_background": {
+      "url": "https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwyfHxhYnN0cmFjdCUyMHNvZnQlMjBsaWdodCUyMGJhY2tncm91bmR8ZW58MHx8fHwxNzgwOTk2NjMwfDA&ixlib=rb-4.1.0&q=85",
+      "description": "Abstract purple/pink/blue gradient soft wave - use with an overlay of bg-blue-900/10 for the login screen background."
+    },
+    "empty_state_landscape": {
+      "url": "https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA0MTJ8MHwxfHNlYXJjaHwxfHxob3BlJTIwbmF0dXJlJTIwbGFuZHNjYXBlJTIwc3VucmlzZXxlbnwwfHx8fDE3ODA5OTY2MzB8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Hope nature landscape sunrise - use as a visual anchor in empty states or onboarding modals, masked with rounded corners."
+    }
+  },
+  "instructions_to_main_agent": [
+    "You are building a React dashboard using Tailwind CSS and Shadcn UI. The files are .js, not .tsx.",
+    "Set <html dir='rtl' lang='ar'> in index.html.",
+    "CRITICAL: Use ONLY Tailwind's logical properties for spacing and alignment (e.g. ps-4, me-2, text-start, text-end, border-s). Avoid pl-4, mr-2, text-left, etc. so the RTL layout remains perfect.",
+    "Implement the 'Glassmorphism' effect on the main layout wrapper and major cards (bg-white/70 backdrop-blur-xl border border-white/60 shadow-sm).",
+    "For complex data-heavy components like the Families Table or Aid Distribution Matrix, use SOLID backgrounds (bg-white) to prevent visual noise, layered on top of the glassy app background.",
+    "Do NOT hardcode aid fields or family fields. The requirement specifically says 'user-defined custom fields' and 'user defines aid categories manually'. You MUST build dynamic form builders/handlers for these.",
+    "Incorporate an Excel import/export capability (e.g. using xlsx library).",
+    "Integrate Firebase for the database. Follow standard secure initialization patterns.",
+    "Always add data-testid attributes to all buttons, inputs, tabs, and interactive elements.",
+    "Use 'Cairo' font for headings and 'Tajawal' for body text. Update tailwind.config.js to include these fonts."
+  ]
+}
