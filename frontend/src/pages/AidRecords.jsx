@@ -8,7 +8,7 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import {
   HandHeart, Loader2, Search, Download, Calendar, ChevronLeft, Trash2,
   Upload, X, ArrowLeftRight, ListChecks, CheckCircle2, AlertTriangle,
-  Plus, Trash, User,
+  Plus, Trash, User, SlidersHorizontal,
 } from "lucide-react";
 
 async function downloadFile(url, filename) {
@@ -26,6 +26,9 @@ export default function AidRecords() {
   const { isAdmin } = useAuth();
   const fileRef = useRef();
   const [search, setSearch] = useState("");
+  const [filterAidType, setFilterAidType] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [importModal, setImportModal] = useState(null);
   const [addModal, setAddModal] = useState(false);
   const [previewing, setPreviewing] = useState(false);
@@ -89,11 +92,19 @@ export default function AidRecords() {
     }
   };
 
-  const filtered = records.filter((r) => {
-    if (!search) return true;
-    const s = search.toLowerCase();
-    return (r.aid_type_name || "").toLowerCase().includes(s) || famName(r.family_id).toLowerCase().includes(s);
-  });
+  const filtered = records
+    .filter((r) => {
+      if (!search) return true;
+      const s = search.toLowerCase();
+      return (r.aid_type_name || "").toLowerCase().includes(s) || famName(r.family_id).toLowerCase().includes(s);
+    })
+    .filter((r) => (filterAidType ? r.aid_type_id === filterAidType : true))
+    .filter((r) => {
+      if (dateFrom && (r.date || "") < dateFrom) return false;
+      if (dateTo && (r.date || "") > dateTo) return false;
+      return true;
+    });
+  const filterActive = !!filterAidType || !!dateFrom || !!dateTo;
 
   // Group records by family_id — each family appears ONCE
   const grouped = filtered.reduce((acc, r) => {
@@ -152,6 +163,40 @@ export default function AidRecords() {
         <input value={search} onChange={(e) => setSearch(e.target.value)} data-testid="aid-search"
           placeholder="بحث بنوع المساعدة أو اسم العائلة..."
           className="w-full bg-white border border-slate-200 rounded-xl ps-12 pe-4 py-3 font-tajawal focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+      </div>
+
+      {/* Advanced filters */}
+      <div className="glass-card rounded-2xl p-4 animate-fade-up flex flex-col sm:flex-row sm:items-end gap-3 flex-wrap" data-testid="aid-advanced-filters">
+        <div className="flex items-center gap-2 text-slate-700 font-tajawal font-bold">
+          <SlidersHorizontal className="w-5 h-5 text-emerald-600" /> فلترة متقدمة
+        </div>
+        <div>
+          <label className="block text-xs font-tajawal font-bold text-slate-500 mb-1">نوع المساعدة</label>
+          <select value={filterAidType} onChange={(e) => setFilterAidType(e.target.value)} data-testid="aid-filter-type-select"
+            className="bg-white border border-slate-200 rounded-lg px-3 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50">
+            <option value="">الكل</option>
+            {aidTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-tajawal font-bold text-slate-500 mb-1">من تاريخ</label>
+          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} data-testid="aid-filter-date-from"
+            className="bg-white border border-slate-200 rounded-lg px-3 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+        </div>
+        <div>
+          <label className="block text-xs font-tajawal font-bold text-slate-500 mb-1">إلى تاريخ</label>
+          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} data-testid="aid-filter-date-to"
+            className="bg-white border border-slate-200 rounded-lg px-3 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+        </div>
+        {filterActive && (
+          <>
+            <span className="text-xs font-tajawal text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full font-bold">{filtered.length} عملية</span>
+            <button onClick={() => { setFilterAidType(""); setDateFrom(""); setDateTo(""); }} data-testid="aid-clear-filters"
+              className="flex items-center gap-1 px-3 py-2 rounded-lg font-tajawal font-bold text-sm text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-all">
+              <X className="w-4 h-4" /> إلغاء الفلاتر
+            </button>
+          </>
+        )}
       </div>
 
       {groupedEntries.length === 0 ? (
@@ -307,11 +352,15 @@ function ManualAidModal({ families, aidTypes, fields, onClose }) {
     notes: "",
   });
 
-  const filtered = families.filter((f) => {
-    if (!search) return true;
-    const s = search.toLowerCase();
-    return Object.values(f.data || {}).some((v) => String(v).toLowerCase().includes(s));
-  });
+  const filtered = families
+    .filter((f) => {
+      if (!search) return true;
+      const s = search.toLowerCase();
+      return Object.values(f.data || {}).some((v) => String(v).toLowerCase().includes(s));
+    })
+    .sort((a, b) =>
+      String(a.data?.[nameKey] || "").localeCompare(String(b.data?.[nameKey] || ""), "ar")
+    );
 
   const mut = useMutation({
     mutationFn: () => api.post("/aid-records", { family_id: selectedFamily.id, ...form }),

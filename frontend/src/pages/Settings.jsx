@@ -5,7 +5,7 @@ import api, { apiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import ConfirmDialog from "../components/ConfirmDialog";
 import {
-  Tag, Plus, Trash2, Loader2, UserCog, Shield, User as UserIcon, X, GripVertical,
+  Tag, Plus, Trash2, Loader2, UserCog, Shield, User as UserIcon, X, GripVertical, Layers,
 } from "lucide-react";
 
 const FIELD_TYPES = [
@@ -23,6 +23,7 @@ export default function Settings() {
         <p className="text-slate-500 font-tajawal mt-1">تعريف حقول العائلة وإدارة المستخدمين</p>
       </div>
       <FieldsSection />
+      <CategoryFieldsSection />
       <UsersSection />
     </div>
   );
@@ -103,6 +104,98 @@ function FieldsSection() {
   );
 }
 
+function CategoryFieldsSection() {
+  const qc = useQueryClient();
+  const [categoryId, setCategoryId] = useState("");
+  const [form, setForm] = useState({ label: "", type: "text" });
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
+  const { data: categories = [] } = useQuery({ queryKey: ["categories"], queryFn: async () => (await api.get("/categories")).data });
+  const activeId = categoryId || categories[0]?.id || "";
+
+  const { data: fields = [], isLoading } = useQuery({
+    queryKey: ["category-fields", activeId],
+    queryFn: async () => (await api.get(`/category-fields?category_id=${activeId}`)).data,
+    enabled: !!activeId,
+  });
+
+  const addMut = useMutation({
+    mutationFn: () => api.post("/category-fields", { category_id: activeId, label: form.label, type: form.type, order: fields.length }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["category-fields", activeId] }); setForm({ label: "", type: "text" }); toast.success("تمت إضافة الخانة"); },
+    onError: (e) => toast.error(apiError(e.response?.data?.detail)),
+  });
+  const delMut = useMutation({
+    mutationFn: (id) => api.delete(`/category-fields/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["category-fields", activeId] }); toast.success("تم حذف الخانة"); },
+  });
+
+  return (
+    <section className="glass-card rounded-2xl p-6 animate-fade-up">
+      <div className="flex items-center gap-3 mb-5">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-md shadow-violet-500/25"><Layers className="w-5 h-5 text-white" /></div>
+        <div>
+          <h2 className="text-xl font-cairo font-bold text-slate-800">خانات الفئات الخاصة</h2>
+          <p className="text-sm text-slate-500 font-tajawal">حدّد الخانات (الحقول) لكل فئة على حدة — أرامل، حوامل، مرضى، إصابات...</p>
+        </div>
+      </div>
+
+      <div className="mb-5">
+        <label className="block text-sm font-tajawal font-bold text-slate-700 mb-1.5">اختر الفئة</label>
+        <select value={activeId} onChange={(e) => setCategoryId(e.target.value)} data-testid="category-select-settings"
+          className="w-full sm:w-64 bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-tajawal focus:outline-none focus:ring-2 focus:ring-violet-500/50">
+          {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </div>
+
+      <form onSubmit={(e) => { e.preventDefault(); if (form.label.trim() && activeId) addMut.mutate(); }} className="flex flex-col sm:flex-row gap-3 mb-5">
+        <input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} data-testid="category-field-label-input"
+          placeholder="اسم الخانة (مثال: نوع الإصابة، عمر الطفل، حالة المرض)"
+          className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-tajawal focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+        <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} data-testid="category-field-type-select"
+          className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-tajawal focus:outline-none focus:ring-2 focus:ring-violet-500/50">
+          {FIELD_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
+        <button type="submit" disabled={addMut.isPending || !activeId} data-testid="add-category-field-button"
+          className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-tajawal font-bold text-white bg-gradient-to-l from-violet-600 to-purple-700 hover:from-violet-700 hover:to-purple-800 transition-all disabled:opacity-60 shadow-md shadow-violet-600/25">
+          {addMut.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />} إضافة
+        </button>
+      </form>
+
+      {isLoading ? (
+        <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 animate-spin text-violet-600" /></div>
+      ) : fields.length === 0 ? (
+        <div className="text-center py-8 font-tajawal text-slate-400">لا توجد خانات لهذه الفئة بعد</div>
+      ) : (
+        <div className="space-y-2">
+          {fields.map((f) => (
+            <div key={f.id} className="flex items-center justify-between bg-white/70 border border-slate-100 rounded-xl px-4 py-3" data-testid={`category-field-${f.id}`}>
+              <div className="flex items-center gap-3">
+                <GripVertical className="w-4 h-4 text-slate-300" />
+                <span className="font-tajawal font-semibold text-slate-800">{f.label}</span>
+                <span className="text-xs font-tajawal bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{FIELD_TYPES.find((t) => t.value === f.type)?.label}</span>
+              </div>
+              <button onClick={() => setConfirmDelete(f.id)}
+                data-testid={`delete-category-field-${f.id}`} className="p-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <ConfirmDialog
+        isOpen={!!confirmDelete}
+        title="حذف الخانة"
+        message="هل تريد حذف هذه الخانة نهائياً؟ سيؤثر على سجلات هذه الفئة."
+        confirmLabel="نعم، احذف"
+        type="danger"
+        onConfirm={() => { delMut.mutate(confirmDelete); setConfirmDelete(null); }}
+        onCancel={() => setConfirmDelete(null)}
+      />
+    </section>
+  );
+}
+
 function UsersSection() {
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -113,6 +206,12 @@ function UsersSection() {
   const delMut = useMutation({
     mutationFn: (id) => api.delete(`/users/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["users"] }); toast.success("تم حذف المستخدم"); },
+    onError: (e) => toast.error(apiError(e.response?.data?.detail)),
+  });
+
+  const roleMut = useMutation({
+    mutationFn: ({ id, role }) => api.put(`/users/${id}/role`, { role }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["users"] }); toast.success("تم تحديث الصلاحية"); },
     onError: (e) => toast.error(apiError(e.response?.data?.detail)),
   });
 
@@ -146,15 +245,28 @@ function UsersSection() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-tajawal font-bold ${u.role === "admin" ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-600"}`}>
-                  {u.role === "admin" ? <Shield className="w-3.5 h-3.5" /> : <UserIcon className="w-3.5 h-3.5" />}
-                  {u.role === "admin" ? "مدير" : "موظف"}
-                </span>
-                {u.id !== user.id && (
-                  <button onClick={() => setConfirmDelete(u.id)}
-                    data-testid={`delete-user-${u.id}`} className="p-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                {u.id === user.id ? (
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-tajawal font-bold ${u.role === "admin" ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-600"}`}>
+                    {u.role === "admin" ? <Shield className="w-3.5 h-3.5" /> : <UserIcon className="w-3.5 h-3.5" />}
+                    {u.role === "admin" ? "مدير" : "موظف"}
+                  </span>
+                ) : (
+                  <>
+                    <select
+                      value={u.role}
+                      disabled={roleMut.isPending}
+                      onChange={(e) => roleMut.mutate({ id: u.id, role: e.target.value })}
+                      data-testid={`role-select-${u.id}`}
+                      className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-tajawal font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
+                    >
+                      <option value="admin">مدير</option>
+                      <option value="staff">موظف</option>
+                    </select>
+                    <button onClick={() => setConfirmDelete(u.id)}
+                      data-testid={`delete-user-${u.id}`} className="p-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </>
                 )}
               </div>
             </div>

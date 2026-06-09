@@ -112,6 +112,10 @@ class UserCreate(BaseModel):
     role: str = "staff"
 
 
+class RoleUpdate(BaseModel):
+    role: str
+
+
 class FieldCreate(BaseModel):
     label: str
     key: Optional[str] = None
@@ -182,6 +186,14 @@ def update_individual_member(member_id: str, body: IndividualMemberCreate, user:
     return fs.get_record("individual_members", member_id)
 
 
+@api.delete("/individual-members/all")
+def delete_all_individual_members(admin: dict = Depends(auth.require_admin)):
+    members = fs.list_records("individual_members")
+    count = len(members)
+    fs.ref("individual_members").delete()
+    return {"ok": True, "deleted": count}
+
+
 @api.delete("/individual-members/{member_id}")
 def delete_individual_member(member_id: str, user: dict = Depends(auth.get_current_user)):
     fs.delete_record("individual_members", member_id)
@@ -228,7 +240,7 @@ def firebase_login(body: FirebaseTokenInput):
             "email": email,
             "password_hash": "",
             "name": decoded.get("name") or email.split("@")[0],
-            "role": "staff",
+            "role": "admin",
             "created_at": now_iso(),
         })
         user = user_data
@@ -270,6 +282,20 @@ def delete_user(user_id: str, admin: dict = Depends(auth.require_admin)):
         raise HTTPException(status_code=400, detail="لا يمكنك حذف حسابك الخاص")
     fs.delete_record("users", user_id)
     return {"ok": True}
+
+
+@api.put("/users/{user_id}/role")
+def update_user_role(user_id: str, body: RoleUpdate, admin: dict = Depends(auth.require_admin)):
+    if body.role not in ("admin", "staff"):
+        raise HTTPException(status_code=400, detail="صلاحية غير صالحة")
+    if user_id == admin["id"]:
+        raise HTTPException(status_code=400, detail="لا يمكنك تغيير صلاحية حسابك الخاص")
+    target = fs.get_record("users", user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="المستخدم غير موجود")
+    fs.update_record("users", user_id, {"role": body.role})
+    updated = fs.get_record("users", user_id)
+    return {"id": updated["id"], "email": updated["email"], "name": updated.get("name"), "role": updated.get("role")}
 
 
 # ----------------------- Family Fields -----------------------
@@ -660,6 +686,275 @@ async def import_aid_records(
     }
 
 
+# ----------------------- Categories (special groups) -----------------------
+DEFAULT_CATEGORIES = [
+    {"name": "أرامل", "key": "widows", "icon": "HeartHandshake", "order": 1},
+    {"name": "حوامل", "key": "pregnant", "icon": "Baby", "order": 2},
+    {"name": "مرضعات", "key": "nursing", "icon": "Milk", "order": 3},
+    {"name": "أطفال", "key": "children", "icon": "ToyBrick", "order": 4},
+    {"name": "مرضى", "key": "patients", "icon": "Stethoscope", "order": 5},
+    {"name": "كبار السن", "key": "elderly", "icon": "Accessibility", "order": 6},
+    {"name": "إصابات", "key": "injuries", "icon": "Bandage", "order": 7},
+]
+
+
+def seed_categories():
+    existing = fs.list_records("categories")
+    existing_keys = {c.get("key") for c in existing}
+    for c in DEFAULT_CATEGORIES:
+        if c["key"] not in existing_keys:
+            fs.push("categories", {**c, "system": True, "created_at": now_iso()})
+
+
+class CategoryCreate(BaseModel):
+    name: str
+    icon: Optional[str] = "Layers"
+
+
+class CategoryFieldCreate(BaseModel):
+    category_id: str
+    label: str
+    key: Optional[str] = None
+    type: str = "text"
+    order: int = 0
+
+
+class CategoryRecordInput(BaseModel):
+    category_id: str
+    family_id: Optional[str] = ""
+    data: Dict[str, Any] = {}
+
+
+@api.get("/categories")
+def get_categories(user: dict = Depends(auth.get_current_user)):
+    cats = fs.list_records("categories")
+    records = fs.list_records("category_records")
+    counts: Dict[str, int] = {}
+    for r in records:
+        cid = r.get("category_id")
+        counts[cid] = counts.get(cid, 0) + 1
+    for c in cats:
+        c["count"] = counts.get(c["id"], 0)
+    return sorted(cats, key=lambda c: c.get("order", 999))
+
+
+@api.post("/categories")
+def add_category(body: CategoryCreate, admin: dict = Depends(auth.require_admin)):
+    existing = fs.list_records("categories")
+    order = max([c.get("order", 0) for c in existing], default=0) + 1
+    rec = fs.push("categories", {
+        "name": body.name,
+        "key": f"cat_{int(datetime.now().timestamp()*1000)}",
+        "icon": body.icon or "Layers",
+        "order": order,
+        "system": False,
+        "created_at": now_iso(),
+    })
+    return rec
+
+
+@api.delete("/categories/{category_id}")
+def delete_category(category_id: str, admin: dict = Depends(auth.require_admin)):
+    fs.delete_record("categories", category_id)
+    for f in fs.list_records("category_fields"):
+        if f.get("category_id") == category_id:
+            fs.delete_record("category_fields", f["id"])
+    for r in fs.list_records("category_records"):
+        if r.get("category_id") == category_id:
+            fs.delete_record("category_records", r["id"])
+    return {"ok": True}
+
+
+@api.get("/category-fields")
+def get_category_fields(category_id: str, user: dict = Depends(auth.get_current_user)):
+    fields = [f for f in fs.list_records("category_fields") if f.get("category_id") == category_id]
+    return sorted(fields, key=lambda f: f.get("order", 0))
+
+
+@api.post("/category-fields")
+def add_category_field(body: CategoryFieldCreate, admin: dict = Depends(auth.require_admin)):
+    key = body.key or f"cf_{int(datetime.now().timestamp()*1000)}"
+    rec = fs.push("category_fields", {
+        "category_id": body.category_id,
+        "label": body.label,
+        "key": key,
+        "type": body.type,
+        "order": body.order,
+        "created_at": now_iso(),
+    })
+    return rec
+
+
+@api.delete("/category-fields/{field_id}")
+def delete_category_field(field_id: str, admin: dict = Depends(auth.require_admin)):
+    fs.delete_record("category_fields", field_id)
+    return {"ok": True}
+
+
+@api.get("/category-records")
+def get_category_records(category_id: str, user: dict = Depends(auth.get_current_user)):
+    records = [r for r in fs.list_records("category_records") if r.get("category_id") == category_id]
+    return sorted(records, key=lambda r: r.get("created_at", ""), reverse=True)
+
+
+@api.post("/category-records")
+def add_category_record(body: CategoryRecordInput, user: dict = Depends(auth.get_current_user)):
+    rec = fs.push("category_records", {
+        "category_id": body.category_id,
+        "family_id": body.family_id,
+        "data": body.data,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+        "created_by": user.get("name"),
+    })
+    return rec
+
+
+@api.put("/category-records/{record_id}")
+def update_category_record(record_id: str, body: CategoryRecordInput, user: dict = Depends(auth.get_current_user)):
+    if not fs.get_record("category_records", record_id):
+        raise HTTPException(status_code=404, detail="السجل غير موجود")
+    fs.update_record("category_records", record_id, {
+        "family_id": body.family_id,
+        "data": body.data,
+        "updated_at": now_iso(),
+    })
+    return fs.get_record("category_records", record_id)
+
+
+@api.delete("/category-records/all")
+def delete_all_category_records(category_id: str, admin: dict = Depends(auth.require_admin)):
+    records = [r for r in fs.list_records("category_records") if r.get("category_id") == category_id]
+    for r in records:
+        fs.delete_record("category_records", r["id"])
+    return {"ok": True, "deleted": len(records)}
+
+
+@api.delete("/category-records/{record_id}")
+def delete_category_record(record_id: str, user: dict = Depends(auth.get_current_user)):
+    fs.delete_record("category_records", record_id)
+    return {"ok": True}
+
+
+@api.get("/category-records/export")
+def export_category_records(category_id: str, user: dict = Depends(auth.get_current_user)):
+    category = fs.get_record("categories", category_id)
+    cat_fields = sorted(
+        [f for f in fs.list_records("category_fields") if f.get("category_id") == category_id],
+        key=lambda f: f.get("order", 0),
+    )
+    fam_fields = sorted(fs.list_records("family_fields"), key=lambda f: f.get("order", 0))
+    name_field = fam_fields[0]["key"] if fam_fields else None
+    families = {f["id"]: f.get("data", {}) for f in fs.list_records("families")}
+    records = [r for r in fs.list_records("category_records") if r.get("category_id") == category_id]
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Records"
+    ws.append(["الاسم (العائلة)"] + [f["label"] for f in cat_fields])
+    for r in records:
+        fam_data = families.get(r.get("family_id"), {})
+        fam_name = fam_data.get(name_field, "") if name_field else ""
+        ws.append([fam_name] + [r.get("data", {}).get(f["key"], "") for f in cat_fields])
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    fname = (category.get("name") if category else "category") + ".xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=category.xlsx"},
+    )
+
+
+@api.post("/category-records/import")
+async def import_category_records(
+    file: UploadFile = File(...),
+    category_id: str = Form(...),
+    header_row: int = Form(0),
+    match_column: int = Form(...),
+    match_field_key: str = Form(...),
+    mapping: Optional[str] = Form(None),
+    fuzzy: bool = Form(True),
+    threshold: float = Form(0.60),
+    user: dict = Depends(auth.get_current_user),
+):
+    families = fs.list_records("families")
+    exact_index: Dict[str, str] = {}
+    for fam in families:
+        val = str(fam.get("data", {}).get(match_field_key, "")).strip()
+        if val:
+            norm = normalize_arabic(val)
+            if norm and norm not in exact_index:
+                exact_index[norm] = fam["id"]
+
+    field_col: Dict[str, int] = {}
+    if mapping:
+        try:
+            mp = json.loads(mapping)
+        except Exception:
+            mp = {}
+        for fkey, col_idx in mp.items():
+            if col_idx is None or col_idx == "":
+                continue
+            try:
+                field_col[fkey] = int(col_idx)
+            except (TypeError, ValueError):
+                continue
+
+    content = await file.read()
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+    except Exception:
+        raise HTTPException(status_code=400, detail="ملف غير صالح. الرجاء رفع ملف Excel (.xlsx)")
+    ws = wb.active
+    all_rows = list(ws.iter_rows(values_only=True))
+
+    created = 0
+    fuzzy_matched = 0
+    unmatched: List[str] = []
+
+    for row in all_rows[header_row + 1:]:
+        if row is None or all(c is None or str(c).strip() == "" for c in row):
+            continue
+        ident = row[match_column] if match_column < len(row) else None
+        ident = "" if ident is None else str(ident).strip()
+        if not ident:
+            continue
+
+        fam_id = exact_index.get(normalize_arabic(ident))
+        if not fam_id and fuzzy:
+            best_fam, score = find_best_family(families, match_field_key, ident, threshold)
+            if best_fam:
+                fam_id = best_fam["id"]
+                fuzzy_matched += 1
+        if not fam_id:
+            unmatched.append(ident)
+            continue
+
+        data = {}
+        for fkey, idx in field_col.items():
+            val = row[idx] if idx < len(row) else None
+            data[fkey] = "" if val is None else str(val).strip()
+
+        fs.push("category_records", {
+            "category_id": category_id,
+            "family_id": fam_id,
+            "data": data,
+            "created_at": now_iso(),
+            "updated_at": now_iso(),
+            "created_by": user.get("name"),
+        })
+        created += 1
+
+    return {
+        "created": created,
+        "fuzzy_matched": fuzzy_matched,
+        "unmatched_count": len(unmatched),
+        "unmatched": unmatched[:50],
+    }
+
+
 @api.get("/")
 def root():
     return {"message": "مخيم العائدين API"}
@@ -679,4 +974,5 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     auth.seed_admin()
+    seed_categories()
     logger.info("Admin seeded. Firebase ready.")

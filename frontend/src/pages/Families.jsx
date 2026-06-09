@@ -8,7 +8,7 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import {
   Plus, Search, Loader2, Users, Pencil, Trash2, Eye,
   Upload, Download, FileSpreadsheet, X, Settings,
-  ArrowLeftRight, ListChecks, HandHeart, Trash,
+  ArrowLeftRight, ListChecks, HandHeart, Trash, ArrowDownAZ, ArrowUpAZ, SlidersHorizontal,
 } from "lucide-react";
 
 async function downloadFile(url, filename) {
@@ -26,6 +26,9 @@ export default function Families() {
   const { isAdmin } = useAuth();
   const fileRef = useRef();
   const [search, setSearch] = useState("");
+  const [sortDir, setSortDir] = useState("asc");
+  const [filterFieldKey, setFilterFieldKey] = useState("");
+  const [filterFieldVal, setFilterFieldVal] = useState("");
   const [modal, setModal] = useState(null);
   const [importModal, setImportModal] = useState(null);
   const [previewing, setPreviewing] = useState(false);
@@ -114,12 +117,22 @@ export default function Families() {
     }
   };
 
-  const filtered = families.filter((f) => {
-    if (!search) return true;
-    return Object.values(f.data || {}).some((v) =>
-      String(v).toLowerCase().includes(search.toLowerCase())
-    );
-  });
+  const nameKey = fields[0]?.key;
+  const filtered = families
+    .filter((f) => {
+      if (!search) return true;
+      return Object.values(f.data || {}).some((v) =>
+        String(v).toLowerCase().includes(search.toLowerCase())
+      );
+    })
+    .filter((f) => {
+      if (!filterFieldKey || !filterFieldVal.trim()) return true;
+      return String(f.data?.[filterFieldKey] || "").toLowerCase().includes(filterFieldVal.trim().toLowerCase());
+    })
+    .sort((a, b) => {
+      const cmp = String(a.data?.[nameKey] || "").localeCompare(String(b.data?.[nameKey] || ""), "ar");
+      return sortDir === "asc" ? cmp : -cmp;
+    });
 
   if (isLoading)
     return (
@@ -188,12 +201,52 @@ export default function Families() {
       </div>
 
       {/* Search */}
-      <div className="relative animate-fade-up">
-        <Search className="absolute top-1/2 -translate-y-1/2 start-4 w-5 h-5 text-slate-400" />
-        <input value={search} onChange={(e) => setSearch(e.target.value)} data-testid="families-search"
-          placeholder="بحث في العائلات..."
-          className="w-full bg-white border border-slate-200 rounded-xl ps-12 pe-4 py-3 font-tajawal focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+      <div className="flex flex-col sm:flex-row gap-3 animate-fade-up">
+        <div className="relative flex-1">
+          <Search className="absolute top-1/2 -translate-y-1/2 start-4 w-5 h-5 text-slate-400" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} data-testid="families-search"
+            placeholder="بحث في العائلات..."
+            className="w-full bg-white border border-slate-200 rounded-xl ps-12 pe-4 py-3 font-tajawal focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+        </div>
+        <button onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+          data-testid="families-sort-toggle" title="ترتيب الأسماء"
+          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-tajawal font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all whitespace-nowrap">
+          {sortDir === "asc" ? <ArrowDownAZ className="w-5 h-5" /> : <ArrowUpAZ className="w-5 h-5" />}
+          {sortDir === "asc" ? "أ → ي" : "ي → أ"}
+        </button>
       </div>
+
+      {/* Advanced filter */}
+      {fields.length > 0 && (
+        <div className="glass-card rounded-2xl p-4 animate-fade-up flex flex-col sm:flex-row sm:items-end gap-3 flex-wrap" data-testid="families-advanced-filters">
+          <div className="flex items-center gap-2 text-slate-700 font-tajawal font-bold">
+            <SlidersHorizontal className="w-5 h-5 text-blue-600" /> فلترة متقدمة
+          </div>
+          <div>
+            <label className="block text-xs font-tajawal font-bold text-slate-500 mb-1">الحقل</label>
+            <select value={filterFieldKey} onChange={(e) => setFilterFieldKey(e.target.value)} data-testid="families-filter-field-select"
+              className="bg-white border border-slate-200 rounded-lg px-3 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+              <option value="">— بدون —</option>
+              {fields.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-tajawal font-bold text-slate-500 mb-1">القيمة تحتوي</label>
+            <input value={filterFieldVal} onChange={(e) => setFilterFieldVal(e.target.value)} data-testid="families-filter-field-value"
+              disabled={!filterFieldKey} placeholder="اكتب قيمة..."
+              className="w-44 bg-white border border-slate-200 rounded-lg px-3 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:opacity-50" />
+          </div>
+          {filterFieldKey && filterFieldVal.trim() && (
+            <>
+              <span className="text-xs font-tajawal text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full font-bold">{filtered.length} نتيجة</span>
+              <button onClick={() => { setFilterFieldKey(""); setFilterFieldVal(""); }} data-testid="families-clear-filters"
+                className="flex items-center gap-1 px-3 py-2 rounded-lg font-tajawal font-bold text-sm text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-all">
+                <X className="w-4 h-4" /> إلغاء الفلتر
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Body */}
       {!fields.length ? (

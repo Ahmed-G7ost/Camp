@@ -11,6 +11,8 @@ import AidRecords from "./pages/AidRecords";
 import AidTypes from "./pages/AidTypes";
 import Settings from "./pages/Settings";
 import IndividualMembers from "./pages/IndividualMembers";
+import Categories from "./pages/Categories";
+import CategoryRecords from "./pages/CategoryRecords";
 import { Loader2 } from "lucide-react";
 
 function Protected({ children, adminOnly }) {
@@ -42,6 +44,8 @@ function AppRoutes() {
         <Route path="families" element={<Families />} />
         <Route path="families/:id" element={<FamilyDetail />} />
         <Route path="individual-members" element={<IndividualMembers />} />
+        <Route path="categories" element={<Categories />} />
+        <Route path="categories/:id" element={<CategoryRecords />} />
         <Route path="aid-records" element={<AidRecords />} />
         <Route
           path="aid-types"

@@ -2,10 +2,11 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import api, { apiError } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 import ConfirmDialog from "../components/ConfirmDialog";
 import {
   UserRoundSearch, Plus, Trash2, Pencil, Loader2, X, Search,
-  Calendar, CreditCard, Users,
+  Calendar, CreditCard, Users, ArrowDownAZ, ArrowUpAZ, SlidersHorizontal, Trash,
 } from "lucide-react";
 
 const RELATIONS = ["ابن", "ابنة", "أب", "أم", "أخ", "أخت", "زوجة", "زوج", "حفيد", "حفيدة", "أخرى"];
@@ -36,10 +37,17 @@ function calcAge(birthDate) {
 
 export default function IndividualMembers() {
   const qc = useQueryClient();
+  const { isAdmin } = useAuth();
   const [search, setSearch] = useState("");
+  const [sortDir, setSortDir] = useState("asc");
   const [selectedFamilyId, setSelectedFamilyId] = useState("");
+  const [filterGender, setFilterGender] = useState("");
+  const [filterRelation, setFilterRelation] = useState("");
+  const [minAge, setMinAge] = useState("");
+  const [maxAge, setMaxAge] = useState("");
   const [modal, setModal] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
 
   // Load families from /families endpoint (dynamic families)
   const { data: families = [] } = useQuery({
@@ -58,6 +66,10 @@ export default function IndividualMembers() {
     const f = families.find((x) => x.id === fid);
     return f?.data?.[nameKey] || "—";
   };
+
+  const sortedFamilies = [...families].sort((a, b) =>
+    String(a.data?.[nameKey] || "").localeCompare(String(b.data?.[nameKey] || ""), "ar")
+  );
 
   const { data: members = [], isLoading } = useQuery({
     queryKey: ["individual-members", selectedFamilyId],
@@ -79,16 +91,42 @@ export default function IndividualMembers() {
     onError: (e) => toast.error(apiError(e.response?.data?.detail)),
   });
 
-  const filtered = members.filter((m) => {
-    if (!search) return true;
-    const s = search.toLowerCase();
-    return (
-      (m.name || "").toLowerCase().includes(s) ||
-      (m.id_number || "").toLowerCase().includes(s) ||
-      (m.relation || "").toLowerCase().includes(s) ||
-      getFamilyName(m.family_id).toLowerCase().includes(s)
-    );
+  const delAllMut = useMutation({
+    mutationFn: () => api.delete("/individual-members/all"),
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ["individual-members"] });
+      qc.invalidateQueries({ queryKey: ["stats"] });
+      toast.success(`تم حذف ${r.data.deleted} فرد`);
+    },
+    onError: (e) => toast.error(apiError(e.response?.data?.detail)),
   });
+
+  const ageFilterActive = minAge !== "" || maxAge !== "";
+  const filtered = members
+    .filter((m) => {
+      if (!search) return true;
+      const s = search.toLowerCase();
+      return (
+        (m.name || "").toLowerCase().includes(s) ||
+        (m.id_number || "").toLowerCase().includes(s) ||
+        (m.relation || "").toLowerCase().includes(s) ||
+        getFamilyName(m.family_id).toLowerCase().includes(s)
+      );
+    })
+    .filter((m) => (filterGender ? m.gender === filterGender : true))
+    .filter((m) => (filterRelation ? m.relation === filterRelation : true))
+    .filter((m) => {
+      if (!ageFilterActive) return true;
+      const age = calcAge(m.birth_date);
+      if (age == null) return false;
+      if (minAge !== "" && age < Number(minAge)) return false;
+      if (maxAge !== "" && age > Number(maxAge)) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const cmp = String(a.name || "").localeCompare(String(b.name || ""), "ar");
+      return sortDir === "asc" ? cmp : -cmp;
+    });
 
   if (isLoading)
     return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>;
@@ -107,6 +145,15 @@ export default function IndividualMembers() {
         </button>
       </div>
 
+      {isAdmin && members.length > 0 && (
+        <div className="flex justify-end animate-fade-up">
+          <button onClick={() => setConfirmDeleteAll(true)} data-testid="delete-all-individuals-button"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-tajawal font-bold text-white bg-gradient-to-l from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 transition-all shadow-md shadow-red-600/25">
+            <Trash className="w-5 h-5" /> حذف الكل
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row gap-3 animate-fade-up">
         <div className="relative flex-1">
           <Search className="absolute top-1/2 -translate-y-1/2 start-4 w-5 h-5 text-slate-400" />
@@ -117,12 +164,62 @@ export default function IndividualMembers() {
         <select value={selectedFamilyId} onChange={(e) => setSelectedFamilyId(e.target.value)} data-testid="filter-family-select"
           className="bg-white border border-slate-200 rounded-xl px-4 py-3 font-tajawal focus:outline-none focus:ring-2 focus:ring-indigo-500/50 sm:w-64">
           <option value="">جميع العائلات</option>
-          {families.map((f) => (
+          {sortedFamilies.map((f) => (
             <option key={f.id} value={f.id}>
               {f.data?.[nameKey] || f.id}
             </option>
           ))}
         </select>
+        <button onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+          data-testid="individual-sort-toggle" title="ترتيب الأسماء"
+          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-tajawal font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all whitespace-nowrap">
+          {sortDir === "asc" ? <ArrowDownAZ className="w-5 h-5" /> : <ArrowUpAZ className="w-5 h-5" />}
+          {sortDir === "asc" ? "أ → ي" : "ي → أ"}
+        </button>
+      </div>
+
+      {/* Advanced filters */}
+      <div className="glass-card rounded-2xl p-4 animate-fade-up space-y-3" data-testid="individual-advanced-filters">
+        <div className="flex items-center gap-2 text-slate-700 font-tajawal font-bold">
+          <SlidersHorizontal className="w-5 h-5 text-indigo-600" /> فلترة متقدمة
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-end gap-3 flex-wrap">
+          <div>
+            <label className="block text-xs font-tajawal font-bold text-slate-500 mb-1">الجنس</label>
+            <select value={filterGender} onChange={(e) => setFilterGender(e.target.value)} data-testid="filter-gender-select"
+              className="bg-white border border-slate-200 rounded-lg px-3 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50">
+              <option value="">الكل</option>
+              {GENDERS.map((g) => <option key={g} value={g}>{g}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-tajawal font-bold text-slate-500 mb-1">صلة القرابة</label>
+            <select value={filterRelation} onChange={(e) => setFilterRelation(e.target.value)} data-testid="filter-relation-select"
+              className="bg-white border border-slate-200 rounded-lg px-3 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50">
+              <option value="">الكل</option>
+              {RELATIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-tajawal font-bold text-slate-500 mb-1">العمر من (سنة)</label>
+            <input type="number" min="0" value={minAge} onChange={(e) => setMinAge(e.target.value)} data-testid="filter-min-age"
+              placeholder="0" className="w-24 bg-white border border-slate-200 rounded-lg px-3 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+          </div>
+          <div>
+            <label className="block text-xs font-tajawal font-bold text-slate-500 mb-1">إلى (سنة)</label>
+            <input type="number" min="0" value={maxAge} onChange={(e) => setMaxAge(e.target.value)} data-testid="filter-max-age"
+              placeholder="99" className="w-24 bg-white border border-slate-200 rounded-lg px-3 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+          </div>
+          {(filterGender || filterRelation || ageFilterActive) && (
+            <>
+              <span className="text-xs font-tajawal text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full font-bold">{filtered.length} نتيجة</span>
+              <button onClick={() => { setFilterGender(""); setFilterRelation(""); setMinAge(""); setMaxAge(""); }} data-testid="individual-clear-filters"
+                className="flex items-center gap-1 px-3 py-2 rounded-lg font-tajawal font-bold text-sm text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-all">
+                <X className="w-4 h-4" /> إلغاء الفلاتر
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {filtered.length === 0 ? (
@@ -196,7 +293,7 @@ export default function IndividualMembers() {
       {modal && (
         <IndividualMemberModal
           modal={modal}
-          families={families}
+          families={sortedFamilies}
           nameKey={nameKey}
           fields={fields}
           onClose={() => setModal(null)}
@@ -211,6 +308,17 @@ export default function IndividualMembers() {
         type="danger"
         onConfirm={() => { delMut.mutate(confirmDelete); setConfirmDelete(null); }}
         onCancel={() => setConfirmDelete(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={confirmDeleteAll}
+        title="حذف جميع الأفراد"
+        message={`ستُحذف جميع سجلات الأفراد (${members.length} فرد) نهائياً. لا يمكن التراجع.`}
+        confirmLabel="نعم، احذف الكل"
+        cancelLabel="إلغاء"
+        type="danger"
+        onConfirm={() => { delAllMut.mutate(); setConfirmDeleteAll(false); }}
+        onCancel={() => setConfirmDeleteAll(false)}
       />
     </div>
   );

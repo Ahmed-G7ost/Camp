@@ -12,12 +12,14 @@ import {
   Menu,
   X,
   UserRoundSearch,
+  Layers,
 } from "lucide-react";
 
 const navItems = [
   { to: "/", label: "لوحة التحكم", icon: LayoutDashboard, end: true },
   { to: "/families", label: "العائلات", icon: Users },
   { to: "/individual-members", label: "أفراد مفصّل", icon: UserRoundSearch },
+  { to: "/categories", label: "الفئات الخاصة", icon: Layers },
   { to: "/aid-records", label: "سجل المساعدات", icon: HandHeart },
   { to: "/aid-types", label: "أنواع المساعدات", icon: Boxes, adminOnly: true },
   { to: "/settings", label: "الإعدادات", icon: SettingsIcon, adminOnly: true },
