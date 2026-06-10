@@ -164,6 +164,13 @@ function normalizeArabic(text) {
   t = t.replace(/ة/g, "ه");
   t = t.replace(/ى/g, "ي");
   t = t.replace(/\s+/g, " ").trim();
+  // توحيد الأسماء المركبة: "عبد الله" = "عبدالله"، "ابو احمد" = "ابواحمد"
+  t = t.replace(/(^| )عبد /g, "$1عبد").replace(/(^| )ابو /g, "$1ابو");
+  // إزالة "ال" التعريف من بداية الكلمات (الديب = ديب) مع استثناء لفظ الجلالة
+  t = t
+    .split(" ")
+    .map((w) => (w !== "الله" && w.startsWith("ال") && w.length > 3 ? w.slice(2) : w))
+    .join(" ");
   return t;
 }
 
@@ -172,21 +179,32 @@ function matchScore(valA, valB) {
   const b = normalizeArabic(valB);
   if (!a || !b) return 0;
   if (a === b) return 1;
-  if (a.includes(b) || b.includes(a)) return 0.85;
-  const wa = new Set(a.split(" "));
-  const wb = new Set(b.split(" "));
+  if (a.includes(b) || b.includes(a)) return 0.95;
+
+  const aw = a.split(" ");
+  const bw = b.split(" ");
+  const wa = new Set(aw);
+  const wb = new Set(bw);
   let common = 0;
   wa.forEach((w) => wb.has(w) && common++);
   if (common === 0) return 0;
-  const total = Math.max(wa.size, wb.size);
-  let score = common / total;
-  const [shorter, longer] = wa.size <= wb.size ? [wa, wb] : [wb, wa];
-  let subset = true;
-  shorter.forEach((w) => {
-    if (!longer.has(w)) subset = false;
-  });
-  if (subset) score = Math.min(1, score + 0.15);
-  return score;
+
+  const minLen = Math.min(wa.size, wb.size);
+  const maxLen = Math.max(wa.size, wb.size);
+  const coverage = common / minLen; // كم من الاسم الأقصر موجود في الأطول
+  const precision = common / maxLen;
+
+  // الاسم الأقصر (ثنائي/ثلاثي) موجود بالكامل داخل الأطول (رباعي/خماسي) → مطابقة قوية
+  if (coverage === 1) {
+    let score = 0.8 + 0.2 * precision;
+    // إذا الكلمات بنفس الترتيب من البداية (محمد احمد ⊂ محمد احمد علي العف) → أقوى
+    const [shortArr, longArr] = aw.length <= bw.length ? [aw, bw] : [bw, aw];
+    if (shortArr.every((w, i) => longArr[i] === w)) score = Math.min(1, score + 0.05);
+    return score;
+  }
+
+  // تطابق جزئي: نعتمد على نسبة التغطية أكثر من طول الاسم
+  return coverage * 0.75 + precision * 0.25;
 }
 
 function findBestFamily(families, fieldKey, query, threshold = 0.6) {
