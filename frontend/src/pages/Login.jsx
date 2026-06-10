@@ -1,17 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { apiError } from "../lib/api";
-import { auth as fbAuth, signInWithEmailAndPassword } from "../lib/firebase";
-import api from "../lib/api";
 import { Tent, Loader2, LogIn, ShieldCheck, AlertTriangle } from "lucide-react";
 
-// Check if Firebase is configured with a real API key
-const FIREBASE_ENABLED = process.env.REACT_APP_FIREBASE_API_KEY &&
-  !process.env.REACT_APP_FIREBASE_API_KEY.includes("Dummy");
-
 export default function Login() {
-  const { loginWithToken } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,39 +16,10 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      if (FIREBASE_ENABLED) {
-        // ── Firebase Auth flow ───────────────────────────
-        try {
-          const credential = await signInWithEmailAndPassword(fbAuth, email, password);
-          const idToken = await credential.user.getIdToken();
-          const { data } = await api.post("/auth/firebase-login", { id_token: idToken });
-          localStorage.setItem("camp_token", data.token);
-          loginWithToken(data.user);
-          navigate("/");
-          return;
-        } catch (fbErr) {
-          // Firebase error codes
-          const code = fbErr.code || "";
-          if (code.includes("user-not-found") || code.includes("wrong-password") || code.includes("invalid-credential")) {
-            // Fall through to password login
-          } else if (code.includes("network") || code.includes("timeout")) {
-            // Fall through to password login
-          } else if (fbErr.response) {
-            // Backend error
-            throw fbErr;
-          }
-          // Fall through to classic login if Firebase fails
-        }
-      }
-
-      // ── Classic password login (fallback / default) ──
-      const { data } = await api.post("/auth/login", { email, password });
-      localStorage.setItem("camp_token", data.token);
-      loginWithToken(data.user);
+      await login(email, password);
       navigate("/");
     } catch (err) {
-      const msg = err.response?.data?.detail;
-      setError(apiError(msg) || "تعذّر تسجيل الدخول. تحقق من البريد وكلمة المرور.");
+      setError(err.message || "تعذّر تسجيل الدخول. تحقق من البريد وكلمة المرور.");
     } finally {
       setLoading(false);
     }
@@ -77,12 +41,10 @@ export default function Login() {
 
         {/* Form */}
         <form onSubmit={submit} className="glass-card rounded-3xl p-8 space-y-5" data-testid="login-form">
-          {FIREBASE_ENABLED && (
-            <div className="flex items-center gap-2 text-xs font-tajawal text-blue-600 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
-              <ShieldCheck className="w-4 h-4 shrink-0" />
-              تسجيل الدخول عبر Firebase Authentication
-            </div>
-          )}
+          <div className="flex items-center gap-2 text-xs font-tajawal text-blue-600 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+            <ShieldCheck className="w-4 h-4 shrink-0" />
+            تسجيل الدخول عبر Firebase Authentication
+          </div>
 
           <div>
             <label className="block text-sm font-tajawal font-bold text-slate-700 mb-2">البريد الإلكتروني</label>
