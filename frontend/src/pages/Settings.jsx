@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import api, { apiError } from "../lib/api";
@@ -6,6 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import ConfirmDialog from "../components/ConfirmDialog";
 import {
   Tag, Plus, Trash2, Loader2, UserCog, Shield, User as UserIcon, X, GripVertical, Layers,
+    DatabaseBackup, Download, Upload, RotateCcw,
 } from "lucide-react";
 
 const FIELD_TYPES = [
@@ -25,7 +26,128 @@ export default function Settings() {
       <FieldsSection />
       <CategoryFieldsSection />
       <UsersSection />
+      <BackupSection />
     </div>
+  );
+}
+
+function BackupSection() {
+  const qc = useQueryClient();
+  const { isAdmin } = useAuth();
+  const fileRef = useRef();
+  const [backingUp, setBackingUp] = useState(false);
+  const [pendingRestore, setPendingRestore] = useState(null); // { payload, fileName, counts }
+
+  const handleBackup = async () => {
+    setBackingUp(true);
+    try {
+      const { data } = await api.get("/backup");
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const link = document.createElement("a");
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      link.href = URL.createObjectURL(blob);
+      link.download = `camp-backup-${stamp}.json`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      toast.success("تم إنشاء النسخة الاحتياطية وتحميلها");
+    } catch (e) {
+      toast.error(apiError(e.response?.data?.detail) || "تعذّر إنشاء النسخة الاحتياطية");
+    } finally {
+      setBackingUp(false);
+    }
+  };
+
+  const handleFile = async (file) => {
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      if (!payload?.data || typeof payload.data !== "object") {
+        return toast.error("ملف غير صالح. الرجاء اختيار ملف نسخة احتياطية صحيح (.json)");
+      }
+      const counts = Object.entries(payload.data).reduce((acc, [k, v]) => {
+        acc[k] = v && typeof v === "object" ? Object.keys(v).length : 0;
+        return acc;
+      }, {});
+      setPendingRestore({ payload, fileName: file.name, counts });
+    } catch {
+      toast.error("تعذّر قراءة الملف. تأكد أنه ملف نسخة احتياطية بصيغة JSON");
+    }
+  };
+
+  const restoreMut = useMutation({
+    mutationFn: () => api.post("/restore", pendingRestore.payload),
+    onSuccess: (r) => {
+      qc.invalidateQueries();
+      toast.success(`تمت استعادة البيانات بنجاح (${r.data.restored} قسم)`);
+      setPendingRestore(null);
+    },
+    onError: (e) => { toast.error(apiError(e.response?.data?.detail) || "فشلت الاستعادة"); setPendingRestore(null); },
+  });
+
+  if (!isAdmin) return null;
+
+  const totalRecords = pendingRestore
+    ? Object.values(pendingRestore.counts).reduce((a, b) => a + b, 0)
+    : 0;
+
+  return (
+    <section className="glass-card rounded-2xl p-6 animate-fade-up" data-testid="backup-section">
+      <div className="flex items-center gap-3 mb-5">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-md shadow-amber-500/25">
+          <DatabaseBackup className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h2 className="text-xl font-cairo font-bold text-slate-800">النسخ الاحتياطي والاستعادة</h2>
+          <p className="text-sm text-slate-500 font-tajawal">احفظ نسخة كاملة من بيانات المخيم أو استعدها عند الحاجة</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Backup */}
+        <div className="bg-white/70 border border-slate-100 rounded-2xl p-5 flex flex-col">
+          <div className="flex items-center gap-2 mb-1.5">
+            <Download className="w-5 h-5 text-emerald-600" />
+            <span className="font-cairo font-bold text-slate-800">نسخة احتياطية</span>
+          </div>
+          <p className="text-sm font-tajawal text-slate-500 mb-4 flex-1">
+            تنزيل ملف يحتوي على جميع العائلات والمساعدات والفئات الخاصة وحقولها.
+          </p>
+          <button onClick={handleBackup} disabled={backingUp} data-testid="backup-button"
+            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-tajawal font-bold text-white bg-gradient-to-l from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 transition-all disabled:opacity-60 shadow-md shadow-emerald-600/25">
+            {backingUp ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+            إنشاء نسخة احتياطية
+          </button>
+        </div>
+
+        {/* Restore */}
+        <div className="bg-white/70 border border-slate-100 rounded-2xl p-5 flex flex-col">
+          <div className="flex items-center gap-2 mb-1.5">
+            <RotateCcw className="w-5 h-5 text-amber-600" />
+            <span className="font-cairo font-bold text-slate-800">استعادة نسخة</span>
+          </div>
+          <p className="text-sm font-tajawal text-slate-500 mb-4 flex-1">
+            رفع ملف نسخة احتياطية لاستعادة البيانات. <span className="font-bold text-amber-700">سيستبدل البيانات الحالية.</span>
+          </p>
+          <input ref={fileRef} type="file" accept=".json,application/json" hidden data-testid="restore-file-input"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
+          <button onClick={() => fileRef.current?.click()} data-testid="restore-button"
+            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-tajawal font-bold text-white bg-gradient-to-l from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 transition-all shadow-md shadow-amber-600/25">
+            <Upload className="w-5 h-5" /> اختيار ملف واستعادة
+          </button>
+        </div>
+      </div>
+
+      <ConfirmDialog
+        isOpen={!!pendingRestore}
+        title="استعادة نسخة احتياطية"
+        message={`سيتم استبدال جميع البيانات الحالية ببيانات الملف "${pendingRestore?.fileName || ""}" (${totalRecords} سجل). لا يمكن التراجع عن هذه العملية. هل تريد المتابعة؟`}
+        confirmLabel={restoreMut.isPending ? "جارٍ الاستعادة..." : "نعم، استعِد البيانات"}
+        cancelLabel="إلغاء"
+        type="danger"
+        onConfirm={() => restoreMut.mutate()}
+        onCancel={() => setPendingRestore(null)}
+      />
+    </section>
   );
 }
 
