@@ -542,6 +542,37 @@ async function exportCategoryRecords(categoryId) {
   return makeXlsxBlob(rows, "Records");
 }
 
+// ── Backup / Restore (full data snapshot, excludes users/auth) ───────────────
+const BACKUP_COLLECTIONS = [
+  "family_fields", "families", "aid_types", "aid_records", "individual_members",
+  "categories", "category_fields", "category_records", "family_members",
+];
+
+async function backupData() {
+  requireAdmin();
+  const data = {};
+  for (const coll of BACKUP_COLLECTIONS) {
+    const snap = await dbGet(dbRef(db, coll));
+    data[coll] = snap.val() || {};
+  }
+  return { version: 1, project: "camp", exported_at: nowIso(), data };
+}
+
+async function restoreData(payload) {
+  requireAdmin();
+  if (!payload || typeof payload !== "object" || !payload.data || typeof payload.data !== "object")
+    throw httpError(400, "ملف النسخة الاحتياطية غير صالح أو تالف");
+  const data = payload.data;
+  const known = BACKUP_COLLECTIONS.filter((c) => c in data);
+  if (!known.length) throw httpError(400, "لا توجد بيانات صالحة في الملف");
+  let restored = 0;
+  for (const coll of known) {
+    await dbSet(dbRef(db, coll), data[coll] || null);
+    restored++;
+  }
+  return { ok: true, restored };
+}
+
 // ── Router ───────────────────────────────────────────────────────────────────
 function parseUrl(url) {
   const [rawPath, q] = url.split("?");
@@ -868,6 +899,10 @@ async function handle(method, path, params, body) {
     await deleteRecord("family_members", seg[1]);
     return { ok: true };
   }
+
+   // ── Backup / Restore ──
+  if (path === "/backup" && method === "GET") return backupData();
+  if (path === "/restore" && method === "POST") return restoreData(body);
 
   // ── Stats ──
   if (path === "/stats" && method === "GET") {
