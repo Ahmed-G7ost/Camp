@@ -717,6 +717,7 @@ async function handle(method, path, params, body) {
       name: body.name,
       id_number: body.id_number,
       birth_date: body.birth_date,
+      age: body.age || "",
       relation: body.relation,
       gender: body.gender,
       notes: body.notes || "",

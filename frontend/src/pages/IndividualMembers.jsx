@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import api, { apiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { calcAgeYears as calcAge, calcAgeLabel, formatDateDMY, toISO } from "../lib/age";
 import {
   UserRoundSearch, Plus, Trash2, Pencil, Loader2, X, Search,
   Calendar, CreditCard, Users, ArrowDownAZ, ArrowUpAZ, SlidersHorizontal, Trash,
@@ -22,17 +23,6 @@ function useFamilyMemberCount(familyId) {
     },
     enabled: !!familyId,
   });
-}
-
-function calcAge(birthDate) {
-  if (!birthDate) return null;
-  const today = new Date();
-  const birth = new Date(birthDate);
-  if (isNaN(birth.getTime())) return null;
-  let age = today.getFullYear() - birth.getFullYear();
-  const m = today.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-  return age;
 }
 
 export default function IndividualMembers() {
@@ -241,7 +231,7 @@ export default function IndividualMembers() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.map((m) => {
-                  const age = calcAge(m.birth_date);
+                  const age = m.age || calcAgeLabel(m.birth_date);
                   return (
                     <tr key={m.id} className="hover:bg-slate-50/70 transition-colors" data-testid={`individual-member-row-${m.id}`}>
                       <td className="px-4 py-3.5">
@@ -268,10 +258,10 @@ export default function IndividualMembers() {
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-tajawal font-bold ${m.gender === "أنثى" ? "bg-pink-50 text-pink-700" : "bg-blue-50 text-blue-700"}`}>{m.gender}</span>
                       </td>
                       <td className="px-4 py-3.5 font-tajawal text-slate-600 text-sm whitespace-nowrap">
-                        {m.birth_date ? <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-slate-400" />{m.birth_date}</span> : "—"}
+                        {m.birth_date ? <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-slate-400" />{formatDateDMY(m.birth_date)}</span> : "—"}
                       </td>
                       <td className="px-4 py-3.5">
-                        {age !== null ? <span className="font-tajawal font-bold text-slate-700 text-sm">{age} سنة</span> : "—"}
+                        {age ? <span className="font-tajawal font-bold text-slate-700 text-sm">{age}</span> : "—"}
                       </td>
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-1">
@@ -332,6 +322,7 @@ function IndividualMemberModal({ modal, families, nameKey, fields, onClose }) {
     name: init.name || "",
     id_number: init.id_number || "",
     birth_date: init.birth_date || "",
+    age: init.age || calcAgeLabel(init.birth_date),
     relation: init.relation || RELATIONS[0],
     gender: init.gender || GENDERS[0],
     notes: init.notes || "",
@@ -358,17 +349,6 @@ function IndividualMemberModal({ modal, families, nameKey, fields, onClose }) {
   const alreadyAdded = countData?.count ?? 0;
   // Subtract 2 for head + wife (already registered outside this form)
   const remaining = expectedCount != null ? Math.max(0, expectedCount - 2 - alreadyAdded) : null;
-
-  const age = (() => {
-    if (!form.birth_date) return null;
-    const today = new Date();
-    const birth = new Date(form.birth_date);
-    if (isNaN(birth.getTime())) return null;
-    let a = today.getFullYear() - birth.getFullYear();
-    const m = today.getMonth() - birth.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) a--;
-    return a;
-  })();
 
   const mut = useMutation({
     mutationFn: () =>
@@ -469,18 +449,22 @@ function IndividualMemberModal({ modal, families, nameKey, fields, onClose }) {
           </div>
 
           {/* تاريخ الميلاد مع حساب العمر */}
-          <div>
-            <label className="block text-sm font-tajawal font-bold text-slate-700 mb-1.5">تاريخ الميلاد</label>
-            <input type="date" value={form.birth_date} onChange={(e) => setForm({ ...form, birth_date: e.target.value })}
-              data-testid="im-birth-date-input"
-              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-tajawal focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
-            {age !== null && (
-              <div className="mt-1.5 flex items-center gap-1.5">
-                <span className="text-xs font-tajawal text-indigo-600 font-bold bg-indigo-50 px-2.5 py-0.5 rounded-full">
-                  العمر: {age} سنة
-                </span>
-              </div>
-            )}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-tajawal font-bold text-slate-700 mb-1.5">تاريخ الميلاد</label>
+              <input type="date" value={toISO(form.birth_date)}
+                onChange={(e) => setForm({ ...form, birth_date: e.target.value, age: calcAgeLabel(e.target.value) })}
+                data-testid="im-birth-date-input"
+                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-tajawal focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+            </div>
+            <div>
+              <label className="block text-sm font-tajawal font-bold text-slate-700 mb-1.5">العمر</label>
+              <input type="text" value={form.age}
+                onChange={(e) => setForm({ ...form, age: e.target.value })}
+                placeholder="يُحسب تلقائياً"
+                data-testid="im-age-input"
+                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-tajawal focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+            </div>
           </div>
 
           {/* صلة القرابة والجنس */}

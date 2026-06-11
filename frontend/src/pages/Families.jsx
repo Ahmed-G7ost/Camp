@@ -1,8 +1,9 @@
-import { useState, useRef } from "react";
+import { useState, useRef, Fragment } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import api, { apiError } from "../lib/api";
+import { isBirthDateField, calcAgeLabel, formatDateDMY, toISO, ageKeyOf } from "../lib/age";
 import { useAuth } from "../context/AuthContext";
 import ConfirmDialog from "../components/ConfirmDialog";
 import {
@@ -263,7 +264,12 @@ export default function Families() {
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   {fields.map((f) => (
-                    <th key={f.id} className="text-start px-4 py-3.5 font-cairo font-bold text-slate-600 text-sm whitespace-nowrap">{f.label}</th>
+                    <Fragment key={f.id}>
+                      <th className="text-start px-4 py-3.5 font-cairo font-bold text-slate-600 text-sm whitespace-nowrap">{f.label}</th>
+                      {isBirthDateField(f) && (
+                        <th className="text-start px-4 py-3.5 font-cairo font-bold text-slate-600 text-sm whitespace-nowrap">العمر</th>
+                      )}
+                    </Fragment>
                   ))}
                   <th className="px-4 py-3.5 font-cairo font-bold text-slate-600 text-sm text-start whitespace-nowrap">المساعدات</th>
                   <th className="px-4 py-3.5 font-cairo font-bold text-slate-600 text-sm text-start">إجراءات</th>
@@ -273,7 +279,16 @@ export default function Families() {
                 {filtered.map((fam) => (
                   <tr key={fam.id} className="hover:bg-slate-50/70 transition-colors" data-testid={`family-row-${fam.id}`}>
                     {fields.map((f) => (
-                      <td key={f.id} className="px-4 py-3.5 font-tajawal text-slate-700 text-sm whitespace-nowrap">{fam.data?.[f.key] || "—"}</td>
+                      <Fragment key={f.id}>
+                        <td className="px-4 py-3.5 font-tajawal text-slate-700 text-sm whitespace-nowrap">
+                          {f.type === "date" ? (formatDateDMY(fam.data?.[f.key]) || "—") : (fam.data?.[f.key] || "—")}
+                        </td>
+                        {isBirthDateField(f) && (
+                          <td className="px-4 py-3.5 font-tajawal font-bold text-slate-700 text-sm whitespace-nowrap" data-testid={`family-age-${fam.id}-${f.key}`}>
+                            {fam.data?.[ageKeyOf(f.key)] || calcAgeLabel(fam.data?.[f.key]) || "—"}
+                          </td>
+                        )}
+                      </Fragment>
                     ))}
                     <td className="px-4 py-3.5">
                       <button onClick={() => navigate(`/families/${fam.id}`)} data-testid={`family-aid-count-${fam.id}`}
@@ -363,7 +378,10 @@ function FamilyModal({ fields, modal, onClose }) {
   const qc = useQueryClient();
   const [form, setForm] = useState(() => {
     const init = {};
-    fields.forEach((f) => (init[f.key] = modal.family?.data?.[f.key] || ""));
+    fields.forEach((f) => {
+      init[f.key] = modal.family?.data?.[f.key] || "";
+      if (isBirthDateField(f)) init[ageKeyOf(f.key)] = modal.family?.data?.[ageKeyOf(f.key)] || calcAgeLabel(init[f.key]);
+    });
     return init;
   });
 
@@ -399,18 +417,44 @@ function FamilyModal({ fields, modal, onClose }) {
           </button>
         </div>
         <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="space-y-4">
-          {fields.map((f) => (
-            <div key={f.id}>
-              <label className="block text-sm font-tajawal font-bold text-slate-700 mb-1.5">{f.label}</label>
-              <input
-                type={f.type === "number" ? "number" : f.type === "date" ? "date" : f.type === "tel" ? "tel" : "text"}
-                value={form[f.key]}
-                onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-                data-testid={`family-field-${f.key}`}
-                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-tajawal focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-              />
-            </div>
-          ))}
+          {fields.map((f) =>
+            isBirthDateField(f) ? (
+              <div key={f.id} className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-tajawal font-bold text-slate-700 mb-1.5">{f.label}</label>
+                  <input
+                    type="date"
+                    value={toISO(form[f.key])}
+                    onChange={(e) => setForm({ ...form, [f.key]: e.target.value, [ageKeyOf(f.key)]: calcAgeLabel(e.target.value) })}
+                    data-testid={`family-field-${f.key}`}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-tajawal focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-tajawal font-bold text-slate-700 mb-1.5">العمر</label>
+                  <input
+                    type="text"
+                    value={form[ageKeyOf(f.key)]}
+                    onChange={(e) => setForm({ ...form, [ageKeyOf(f.key)]: e.target.value })}
+                    placeholder="يُحسب تلقائياً"
+                    data-testid={`family-field-${f.key}-age`}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-tajawal focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div key={f.id}>
+                <label className="block text-sm font-tajawal font-bold text-slate-700 mb-1.5">{f.label}</label>
+                <input
+                  type={f.type === "number" ? "number" : f.type === "date" ? "date" : f.type === "tel" ? "tel" : "text"}
+                  value={f.type === "date" ? toISO(form[f.key]) : form[f.key]}
+                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                  data-testid={`family-field-${f.key}`}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-tajawal focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                />
+              </div>
+            )
+          )}
           <button type="submit" disabled={mut.isPending} data-testid="save-family-button"
             className="w-full bg-gradient-to-l from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-tajawal font-bold rounded-xl px-4 py-3 flex items-center justify-center gap-2 transition-all disabled:opacity-60 shadow-md shadow-blue-600/25">
             {mut.isPending && <Loader2 className="w-5 h-5 animate-spin" />} حفظ

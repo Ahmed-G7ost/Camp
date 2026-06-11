@@ -1,6 +1,6 @@
 // Firebase web SDK configuration (frontend-only, like cards project)
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth, signInWithEmailAndPassword, signOut as fbSignOut } from "firebase/auth";
+import { getAuth } from "firebase/auth";
 import { getDatabase } from "firebase/database";
 
 const firebaseConfig = {
@@ -19,5 +19,6 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-export { auth, db, signInWithEmailAndPassword, fbSignOut };
+export { auth, db };
+export { signInWithEmailAndPassword, signOut as fbSignOut } from "firebase/auth";
 export default app;

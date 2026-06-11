@@ -1,10 +1,11 @@
-import { useState, useRef } from "react";
+import { useState, useRef, Fragment } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import api, { apiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { isBirthDateField, calcAgeLabel, formatDateDMY, toISO, ageKeyOf, parseDate } from "../lib/age";
 import {
   Plus, Search, Loader2, Pencil, Trash2, ArrowRight, User,
   Upload, Download, X, ArrowLeftRight, Settings,
@@ -24,8 +25,8 @@ async function downloadFile(url, filename) {
 function computeAge(field, value) {
   if (!value && value !== 0) return null;
   if (field?.type === "date") {
-    const b = new Date(value);
-    if (isNaN(b.getTime())) return null;
+    const b = parseDate(value);
+    if (!b) return null;
     const t = new Date();
     let a = t.getFullYear() - b.getFullYear();
     const m = t.getMonth() - b.getMonth();
@@ -296,7 +297,12 @@ export default function CategoryRecords() {
                 <tr>
                   <th className="text-start px-4 py-3.5 font-cairo font-bold text-slate-600 text-sm whitespace-nowrap">الاسم (العائلة)</th>
                   {catFields.map((f) => (
-                    <th key={f.id} className="text-start px-4 py-3.5 font-cairo font-bold text-slate-600 text-sm whitespace-nowrap">{f.label}</th>
+                    <Fragment key={f.id}>
+                      <th className="text-start px-4 py-3.5 font-cairo font-bold text-slate-600 text-sm whitespace-nowrap">{f.label}</th>
+                      {isBirthDateField(f) && (
+                        <th className="text-start px-4 py-3.5 font-cairo font-bold text-slate-600 text-sm whitespace-nowrap">العمر</th>
+                      )}
+                    </Fragment>
                   ))}
                   <th className="px-4 py-3.5 font-cairo font-bold text-slate-600 text-sm text-start">إجراءات</th>
                 </tr>
@@ -313,7 +319,16 @@ export default function CategoryRecords() {
                       </div>
                     </td>
                     {catFields.map((f) => (
-                      <td key={f.id} className="px-4 py-3.5 font-tajawal text-slate-700 text-sm whitespace-nowrap">{r.data?.[f.key] || "—"}</td>
+                      <Fragment key={f.id}>
+                        <td className="px-4 py-3.5 font-tajawal text-slate-700 text-sm whitespace-nowrap">
+                          {f.type === "date" ? (formatDateDMY(r.data?.[f.key]) || "—") : (r.data?.[f.key] || "—")}
+                        </td>
+                        {isBirthDateField(f) && (
+                          <td className="px-4 py-3.5 font-tajawal font-bold text-slate-700 text-sm whitespace-nowrap" data-testid={`category-age-${r.id}-${f.key}`}>
+                            {r.data?.[ageKeyOf(f.key)] || calcAgeLabel(r.data?.[f.key]) || "—"}
+                          </td>
+                        )}
+                      </Fragment>
                     ))}
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-1">
@@ -387,7 +402,10 @@ function RecordModal({ categoryId, catFields, families, famFields, modal, onClos
   const [name, setName] = useState(modal.record?.name || "");
   const [form, setForm] = useState(() => {
     const init = {};
-    catFields.forEach((f) => (init[f.key] = modal.record?.data?.[f.key] || ""));
+    catFields.forEach((f) => {
+      init[f.key] = modal.record?.data?.[f.key] || "";
+      if (isBirthDateField(f)) init[ageKeyOf(f.key)] = modal.record?.data?.[ageKeyOf(f.key)] || calcAgeLabel(init[f.key]);
+    });
     return init;
   });
 
@@ -482,18 +500,44 @@ function RecordModal({ categoryId, catFields, families, famFields, modal, onClos
                   لا توجد خانات لهذه الفئة بعد. أضِفها من الإعدادات لتسجيل تفاصيل إضافية.
                 </div>
               ) : (
-                catFields.map((f) => (
-                  <div key={f.id}>
-                    <label className="block text-sm font-tajawal font-bold text-slate-700 mb-1.5">{f.label}</label>
-                    <input
-                      type={f.type === "number" ? "number" : f.type === "date" ? "date" : f.type === "tel" ? "tel" : "text"}
-                      value={form[f.key]}
-                      onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-                      data-testid={`category-field-${f.key}`}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-tajawal focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                    />
-                  </div>
-                ))
+                catFields.map((f) =>
+                  isBirthDateField(f) ? (
+                    <div key={f.id} className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-tajawal font-bold text-slate-700 mb-1.5">{f.label}</label>
+                        <input
+                          type="date"
+                          value={toISO(form[f.key])}
+                          onChange={(e) => setForm({ ...form, [f.key]: e.target.value, [ageKeyOf(f.key)]: calcAgeLabel(e.target.value) })}
+                          data-testid={`category-field-${f.key}`}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-tajawal focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-tajawal font-bold text-slate-700 mb-1.5">العمر</label>
+                        <input
+                          type="text"
+                          value={form[ageKeyOf(f.key)]}
+                          onChange={(e) => setForm({ ...form, [ageKeyOf(f.key)]: e.target.value })}
+                          placeholder="يُحسب تلقائياً"
+                          data-testid={`category-field-${f.key}-age`}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-tajawal focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div key={f.id}>
+                      <label className="block text-sm font-tajawal font-bold text-slate-700 mb-1.5">{f.label}</label>
+                      <input
+                        type={f.type === "number" ? "number" : f.type === "date" ? "date" : f.type === "tel" ? "tel" : "text"}
+                        value={f.type === "date" ? toISO(form[f.key]) : form[f.key]}
+                        onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                        data-testid={`category-field-${f.key}`}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-tajawal focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                      />
+                    </div>
+                  )
+                )
               )}
             </div>
           </div>

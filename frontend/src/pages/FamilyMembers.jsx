@@ -109,8 +109,8 @@ export default function FamilyMembers() {
 }
 
 function FamilyMemberCard({ member: m, onEdit, onDelete }) {
-  const headAge = calcAge(m.head_birth_date);
-  const wifeAge = calcAge(m.wife_birth_date);
+  const headAge = m.head_age || calcAgeLabel(m.head_birth_date);
+  const wifeAge = m.wife_age || calcAgeLabel(m.wife_birth_date);
 
   return (
     <div className="glass-card rounded-2xl p-5 animate-fade-up" data-testid={`family-member-card-${m.id}`}>
@@ -125,7 +125,7 @@ function FamilyMemberCard({ member: m, onEdit, onDelete }) {
             <div className="flex items-center gap-1 text-xs text-slate-400 font-tajawal mt-0.5">
               <CreditCard className="w-3.5 h-3.5" />
               <span>{m.head_id}</span>
-              {headAge !== null && <span className="bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded-full font-bold mr-1">{headAge} سنة</span>}
+              {headAge && <span className="bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded-full font-bold mr-1">{headAge}</span>}
             </div>
           </div>
         </div>
@@ -150,7 +150,7 @@ function FamilyMemberCard({ member: m, onEdit, onDelete }) {
             </div>
             <div className="font-tajawal font-semibold text-slate-800 text-sm">{m.wife_name}</div>
             {m.wife_id && <div className="text-xs text-slate-500 font-tajawal">{m.wife_id}</div>}
-            {wifeAge !== null && <div className="text-xs text-pink-500 font-tajawal font-bold mt-0.5">{wifeAge} سنة</div>}
+            {wifeAge && <div className="text-xs text-pink-500 font-tajawal font-bold mt-0.5">{wifeAge}</div>}
           </div>
         )}
         <div className="bg-blue-50/60 rounded-xl px-3 py-2.5 border border-blue-100">
@@ -170,7 +170,7 @@ function FamilyMemberCard({ member: m, onEdit, onDelete }) {
             <div className="text-xs font-tajawal font-bold text-slate-400 mb-0.5 flex items-center gap-1">
               <Calendar className="w-3 h-3" /> ميلاد رب الأسرة
             </div>
-            <div className="font-tajawal text-slate-700 text-sm">{m.head_birth_date}</div>
+            <div className="font-tajawal text-slate-700 text-sm">{formatDateDMY(m.head_birth_date)}</div>
           </div>
         )}
       </div>
@@ -191,16 +191,15 @@ function FamilyMemberModal({ modal, onClose }) {
     head_id: init.head_id || "",
     head_name: init.head_name || "",
     head_birth_date: init.head_birth_date || "",
+    head_age: init.head_age || calcAgeLabel(init.head_birth_date),
     wife_id: init.wife_id || "",
     wife_name: init.wife_name || "",
     wife_birth_date: init.wife_birth_date || "",
+    wife_age: init.wife_age || calcAgeLabel(init.wife_birth_date),
     phone: init.phone || "",
     members_count: init.members_count || "",
     notes: init.notes || "",
   });
-
-  const headAge = calcAge(form.head_birth_date);
-  const wifeAge = calcAge(form.wife_birth_date);
 
   const mut = useMutation({
     mutationFn: () =>
@@ -275,16 +274,22 @@ function FamilyMemberModal({ modal, onClose }) {
                 <input
                   type="date"
                   required
-                  value={form.head_birth_date}
-                  onChange={(e) => setForm({ ...form, head_birth_date: e.target.value })}
+                  value={toISO(form.head_birth_date)}
+                  onChange={(e) => setForm({ ...form, head_birth_date: e.target.value, head_age: calcAgeLabel(e.target.value) })}
                   data-testid="fm-field-head_birth_date"
                   className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-tajawal focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                 />
-                {headAge !== null && (
-                  <div className="mt-1.5 text-xs font-tajawal text-blue-600 font-bold">
-                    العمر: {headAge} سنة
-                  </div>
-                )}
+              </div>
+              <div>
+                <label className="block text-sm font-tajawal font-bold text-slate-700 mb-1.5">العمر</label>
+                <input
+                  type="text"
+                  value={form.head_age}
+                  onChange={(e) => setForm({ ...form, head_age: e.target.value })}
+                  placeholder="يُحسب تلقائياً"
+                  data-testid="fm-field-head_age"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-tajawal focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                />
               </div>
             </div>
           </div>
@@ -304,16 +309,22 @@ function FamilyMemberModal({ modal, onClose }) {
                 <label className="block text-sm font-tajawal font-bold text-slate-700 mb-1.5">تاريخ الميلاد</label>
                 <input
                   type="date"
-                  value={form.wife_birth_date}
-                  onChange={(e) => setForm({ ...form, wife_birth_date: e.target.value })}
+                  value={toISO(form.wife_birth_date)}
+                  onChange={(e) => setForm({ ...form, wife_birth_date: e.target.value, wife_age: calcAgeLabel(e.target.value) })}
                   data-testid="fm-field-wife_birth_date"
                   className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-tajawal focus:outline-none focus:ring-2 focus:ring-pink-500/50"
                 />
-                {wifeAge !== null && (
-                  <div className="mt-1.5 text-xs font-tajawal text-pink-600 font-bold">
-                    العمر: {wifeAge} سنة
-                  </div>
-                )}
+              </div>
+              <div>
+                <label className="block text-sm font-tajawal font-bold text-slate-700 mb-1.5">العمر</label>
+                <input
+                  type="text"
+                  value={form.wife_age}
+                  onChange={(e) => setForm({ ...form, wife_age: e.target.value })}
+                  placeholder="يُحسب تلقائياً"
+                  data-testid="fm-field-wife_age"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-tajawal focus:outline-none focus:ring-2 focus:ring-pink-500/50"
+                />
               </div>
             </div>
           </div>

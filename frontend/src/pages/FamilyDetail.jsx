@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import api, { apiError } from "../lib/api";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { isBirthDateField, calcAgeLabel, formatDateDMY, ageKeyOf } from "../lib/age";
 import {
   ArrowRight, Loader2, HandHeart, Plus, Trash2, Calendar, X, User,
 } from "lucide-react";
@@ -56,7 +57,14 @@ export default function FamilyDetail() {
           {fields.map((f) => (
             <div key={f.id} className="bg-white/60 rounded-xl px-4 py-3 border border-slate-100">
               <div className="text-xs font-tajawal font-bold text-slate-400">{f.label}</div>
-              <div className="font-tajawal font-semibold text-slate-800 mt-0.5">{family.data?.[f.key] || "—"}</div>
+              <div className="font-tajawal font-semibold text-slate-800 mt-0.5">
+                {f.type === "date" ? (formatDateDMY(family.data?.[f.key]) || "—") : (family.data?.[f.key] || "—")}
+                {isBirthDateField(f) && (family.data?.[ageKeyOf(f.key)] || calcAgeLabel(family.data?.[f.key])) && (
+                  <span className="mr-2 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-bold" data-testid={`family-detail-age-${f.key}`}>
+                    العمر: {family.data?.[ageKeyOf(f.key)] || calcAgeLabel(family.data?.[f.key])}
+                  </span>
+                )}
+              </div>
             </div>
           ))}
         </div>
