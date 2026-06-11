@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import api, { apiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { NameBadge, GenderBadge, isGenderField, isNameField, ColorName } from "../components/Colorize";
 import { isBirthDateField, calcAgeLabel, formatDateDMY, toISO, ageKeyOf, parseDate } from "../lib/age";
 import {
   Plus, Search, Loader2, Pencil, Trash2, ArrowRight, User,
@@ -311,17 +312,16 @@ export default function CategoryRecords() {
                 {filtered.map((r) => (
                   <tr key={r.id} className="hover:bg-slate-50/70 transition-colors" data-testid={`category-row-${r.id}`}>
                     <td className="px-4 py-3.5 min-w-[160px]">
-                      <div className="flex items-center gap-2">
-                        <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-                          <User className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <span className="font-tajawal font-bold text-slate-800 text-sm whitespace-nowrap">{recName(r)}</span>
-                      </div>
+                      <NameBadge name={recName(r)} testId={`category-record-name-${r.id}`} />
                     </td>
                     {catFields.map((f) => (
                       <Fragment key={f.id}>
                         <td className="px-4 py-3.5 font-tajawal text-slate-700 text-sm whitespace-nowrap">
-                          {f.type === "date" ? (formatDateDMY(r.data?.[f.key]) || "—") : (r.data?.[f.key] || "—")}
+                          {isGenderField(f.label) ? (
+                            <GenderBadge value={r.data?.[f.key]} testId={`category-gender-${r.id}`} />
+                          ) : isNameField(f.label) && f.type !== "date" && f.type !== "number" ? (
+                            <ColorName name={r.data?.[f.key]} />
+                          ) : f.type === "date" ? (formatDateDMY(r.data?.[f.key]) || "—") : (r.data?.[f.key] || "—")}
                         </td>
                         {isBirthDateField(f) && (
                           <td className="px-4 py-3.5 font-tajawal font-bold text-slate-700 text-sm whitespace-nowrap" data-testid={`category-age-${r.id}-${f.key}`}>

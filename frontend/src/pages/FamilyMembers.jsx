@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import api, { apiError } from "../lib/api";
+import { calcAgeLabel, formatDateDMY, toISO } from "../lib/age";
+import { namePalette, FemaleIcon } from "../components/Colorize";
 import ConfirmDialog from "../components/ConfirmDialog";
 import {
   UserRound, Plus, Trash2, Pencil, Loader2, X, Search,
@@ -109,6 +111,7 @@ export default function FamilyMembers() {
 }
 
 function FamilyMemberCard({ member: m, onEdit, onDelete }) {
+  const p = namePalette(m.head_name);
   const headAge = m.head_age || calcAgeLabel(m.head_birth_date);
   const wifeAge = m.wife_age || calcAgeLabel(m.wife_birth_date);
 
@@ -117,11 +120,12 @@ function FamilyMemberCard({ member: m, onEdit, onDelete }) {
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center shadow-md shadow-purple-500/30">
-            <UserRound className="w-6 h-6 text-white" />
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white font-cairo font-extrabold text-lg"
+            style={{ background: p.grad, boxShadow: `0 6px 16px ${p.ring}` }}>
+            {String(m.head_name || "؟").trim().charAt(0)}
           </div>
           <div>
-            <h3 className="font-cairo font-extrabold text-slate-900 text-base">{m.head_name}</h3>
+            <h3 className="font-cairo font-extrabold text-base" style={{ color: p.text }}>{m.head_name}</h3>
             <div className="flex items-center gap-1 text-xs text-slate-400 font-tajawal mt-0.5">
               <CreditCard className="w-3.5 h-3.5" />
               <span>{m.head_id}</span>
@@ -145,8 +149,8 @@ function FamilyMemberCard({ member: m, onEdit, onDelete }) {
       <div className="grid grid-cols-2 gap-2 text-sm">
         {m.wife_name && (
           <div className="bg-pink-50/60 rounded-xl px-3 py-2.5 border border-pink-100">
-            <div className="text-xs font-tajawal font-bold text-pink-400 mb-0.5 flex items-center gap-1">
-              <User className="w-3 h-3" /> الزوجة
+            <div className="text-xs font-tajawal font-bold text-pink-500 mb-0.5 flex items-center gap-1">
+              <FemaleIcon className="w-3 h-3" /> الزوجة
             </div>
             <div className="font-tajawal font-semibold text-slate-800 text-sm">{m.wife_name}</div>
             {m.wife_id && <div className="text-xs text-slate-500 font-tajawal">{m.wife_id}</div>}

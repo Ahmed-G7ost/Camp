@@ -4,9 +4,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import api, { apiError } from "../lib/api";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { namePalette, GenderBadge, isGenderField } from "../components/Colorize";
 import { isBirthDateField, calcAgeLabel, formatDateDMY, ageKeyOf } from "../lib/age";
 import {
-  ArrowRight, Loader2, HandHeart, Plus, Trash2, Calendar, X, User,
+  ArrowRight, Loader2, HandHeart, Plus, Trash2, Calendar, X,
 } from "lucide-react";
 
 export default function FamilyDetail() {
@@ -35,6 +36,7 @@ export default function FamilyDetail() {
   if (!family) return <div className="text-center py-20 font-tajawal text-slate-500">العائلة غير موجودة</div>;
 
   const familyName = family.data?.[fields[0]?.key] || "عائلة";
+  const p = namePalette(familyName);
 
   return (
     <div className="space-y-6" data-testid="family-detail-page">
@@ -45,11 +47,12 @@ export default function FamilyDetail() {
 
       <div className="glass-card rounded-2xl p-6 animate-fade-up">
         <div className="flex items-center gap-4 mb-5">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg">
-            <User className="w-7 h-7 text-white" />
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-cairo font-extrabold text-2xl"
+            style={{ background: p.grad, boxShadow: `0 8px 20px ${p.ring}` }}>
+            {String(familyName).trim().charAt(0)}
           </div>
           <div>
-            <h1 className="text-2xl font-cairo font-extrabold text-slate-900">{familyName}</h1>
+            <h1 className="text-2xl font-cairo font-extrabold" style={{ color: p.text }}>{familyName}</h1>
             <p className="text-slate-500 font-tajawal text-sm">{records.length} عملية مساعدة</p>
           </div>
         </div>
@@ -58,7 +61,9 @@ export default function FamilyDetail() {
             <div key={f.id} className="bg-white/60 rounded-xl px-4 py-3 border border-slate-100">
               <div className="text-xs font-tajawal font-bold text-slate-400">{f.label}</div>
               <div className="font-tajawal font-semibold text-slate-800 mt-0.5">
-                {f.type === "date" ? (formatDateDMY(family.data?.[f.key]) || "—") : (family.data?.[f.key] || "—")}
+                {isGenderField(f.label) ? (
+                  <GenderBadge value={family.data?.[f.key]} />
+                ) : f.type === "date" ? (formatDateDMY(family.data?.[f.key]) || "—") : (family.data?.[f.key] || "—")}
                 {isBirthDateField(f) && (family.data?.[ageKeyOf(f.key)] || calcAgeLabel(family.data?.[f.key])) && (
                   <span className="mr-2 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-bold" data-testid={`family-detail-age-${f.key}`}>
                     العمر: {family.data?.[ageKeyOf(f.key)] || calcAgeLabel(family.data?.[f.key])}

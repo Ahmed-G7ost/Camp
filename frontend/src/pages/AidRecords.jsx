@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import api, { apiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { NameBadge } from "../components/Colorize";
 import {
   HandHeart, Loader2, Search, Download, Calendar, ChevronLeft, Trash2,
   Upload, X, ArrowLeftRight, ListChecks, CheckCircle2, AlertTriangle,
@@ -223,14 +224,7 @@ export default function AidRecords() {
 
                     {/* اسم العائلة */}
                     <td className="px-4 py-4 min-w-[160px]">
-                      <div className="flex items-center gap-2">
-                        <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-                          <User className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <span className="font-tajawal font-bold text-slate-800 text-sm whitespace-nowrap">
-                          {famName(familyId)}
-                        </span>
-                      </div>
+                      <NameBadge name={famName(familyId)} testId={`aid-family-name-${familyId}`} />
                     </td>
 
                     {/* Badges لكل مساعدة */}

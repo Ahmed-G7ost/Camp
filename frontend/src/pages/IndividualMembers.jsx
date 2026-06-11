@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import api, { apiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { NameBadge, GenderBadge } from "../components/Colorize";
 import { calcAgeYears as calcAge, calcAgeLabel, formatDateDMY, toISO } from "../lib/age";
 import {
   UserRoundSearch, Plus, Trash2, Pencil, Loader2, X, Search,
@@ -235,12 +236,7 @@ export default function IndividualMembers() {
                   return (
                     <tr key={m.id} className="hover:bg-slate-50/70 transition-colors" data-testid={`individual-member-row-${m.id}`}>
                       <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ${m.gender === "أنثى" ? "bg-gradient-to-br from-pink-400 to-rose-500" : "bg-gradient-to-br from-blue-400 to-blue-600"}`}>
-                            {m.name?.[0] || "؟"}
-                          </div>
-                          <span className="font-tajawal font-semibold text-slate-800 text-sm whitespace-nowrap">{m.name}</span>
-                        </div>
+                        <NameBadge name={m.name} testId={`individual-name-${m.id}`} />
                       </td>
                       <td className="px-4 py-3.5 font-tajawal text-slate-600 text-sm whitespace-nowrap">
                         <span className="flex items-center gap-1"><CreditCard className="w-3.5 h-3.5 text-slate-400" />{m.id_number}</span>
@@ -255,7 +251,7 @@ export default function IndividualMembers() {
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-tajawal font-bold bg-indigo-50 text-indigo-700">{m.relation}</span>
                       </td>
                       <td className="px-4 py-3.5">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-tajawal font-bold ${m.gender === "أنثى" ? "bg-pink-50 text-pink-700" : "bg-blue-50 text-blue-700"}`}>{m.gender}</span>
+                        <GenderBadge value={m.gender} testId={`individual-gender-${m.id}`} />
                       </td>
                       <td className="px-4 py-3.5 font-tajawal text-slate-600 text-sm whitespace-nowrap">
                         {m.birth_date ? <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-slate-400" />{formatDateDMY(m.birth_date)}</span> : "—"}

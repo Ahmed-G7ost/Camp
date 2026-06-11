@@ -6,6 +6,7 @@ import api, { apiError } from "../lib/api";
 import { isBirthDateField, calcAgeLabel, formatDateDMY, toISO, ageKeyOf } from "../lib/age";
 import { useAuth } from "../context/AuthContext";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { NameBadge, GenderBadge, isGenderField, isNameField, ColorName } from "../components/Colorize";
 import {
   Plus, Search, Loader2, Users, Pencil, Trash2, Eye,
   Upload, Download, FileSpreadsheet, X, Settings,
@@ -281,7 +282,13 @@ export default function Families() {
                     {fields.map((f) => (
                       <Fragment key={f.id}>
                         <td className="px-4 py-3.5 font-tajawal text-slate-700 text-sm whitespace-nowrap">
-                          {f.type === "date" ? (formatDateDMY(fam.data?.[f.key]) || "—") : (fam.data?.[f.key] || "—")}
+                          {f.key === nameKey ? (
+                            <NameBadge name={fam.data?.[f.key]} testId={`family-name-${fam.id}`} />
+                          ) : isGenderField(f.label) ? (
+                            <GenderBadge value={fam.data?.[f.key]} testId={`family-gender-${fam.id}`} />
+                          ) : isNameField(f.label) && f.type !== "date" && f.type !== "number" ? (
+                            <ColorName name={fam.data?.[f.key]} />
+                          ) : f.type === "date" ? (formatDateDMY(fam.data?.[f.key]) || "—") : (fam.data?.[f.key] || "—")}
                         </td>
                         {isBirthDateField(f) && (
                           <td className="px-4 py-3.5 font-tajawal font-bold text-slate-700 text-sm whitespace-nowrap" data-testid={`family-age-${fam.id}-${f.key}`}>
