@@ -7,7 +7,7 @@ import { useAuth } from "../context/AuthContext";
 import ConfirmDialog from "../components/ConfirmDialog";
 import {
   Plus, Search, Loader2, Pencil, Trash2, ArrowRight, User,
-  Upload, Download, X, ArrowLeftRight, ListChecks, Settings,
+  Upload, Download, X, ArrowLeftRight, Settings,
   CheckCircle2, AlertTriangle, Layers, ArrowDownAZ, ArrowUpAZ, SlidersHorizontal, Trash,
 } from "lucide-react";
 
@@ -74,6 +74,8 @@ export default function CategoryRecords() {
     const f = families.find((x) => x.id === fid);
     return f?.data?.[nameKey] || "—";
   };
+  // اسم السجل: يؤخذ من السجل مباشرة (الكشف) وإلا من العائلة المرتبطة إن وُجدت
+  const recName = (r) => r.name || famName(r.family_id);
 
   const delMut = useMutation({
     mutationFn: (rid) => api.delete(`/category-records/${rid}`),
@@ -88,15 +90,13 @@ export default function CategoryRecords() {
   });
 
   const importMut = useMutation({
-    mutationFn: ({ file, headerRow, matchColumn, matchFieldKey, mapping, fuzzy }) => {
+    mutationFn: ({ file, headerRow, matchColumn, mapping }) => {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("category_id", id);
       fd.append("header_row", String(headerRow));
       fd.append("match_column", String(matchColumn));
-      fd.append("match_field_key", matchFieldKey);
       fd.append("mapping", JSON.stringify(mapping));
-      fd.append("fuzzy", String(fuzzy));
       return api.post("/category-records/import", fd);
     },
     onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["category-records", id] }); qc.invalidateQueries({ queryKey: ["categories"] }); },
@@ -104,7 +104,6 @@ export default function CategoryRecords() {
   });
 
   const handleFileSelect = async (file) => {
-    if (!families.length) return toast.error("لا توجد عائلات مسجّلة لربط الأسماء بها");
     setPreviewing(true);
     try {
       const fd = new FormData();
@@ -129,7 +128,7 @@ export default function CategoryRecords() {
     .filter((r) => {
       if (!search) return true;
       const s = search.toLowerCase();
-      if (famName(r.family_id).toLowerCase().includes(s)) return true;
+      if (recName(r).toLowerCase().includes(s)) return true;
       return Object.values(r.data || {}).some((v) => String(v).toLowerCase().includes(s));
     })
     .filter((r) => {
@@ -145,7 +144,7 @@ export default function CategoryRecords() {
       return true;
     })
     .sort((a, b) => {
-      const cmp = famName(a.family_id).localeCompare(famName(b.family_id), "ar");
+      const cmp = recName(a).localeCompare(recName(b), "ar");
       return sortDir === "asc" ? cmp : -cmp;
     });
 
@@ -185,7 +184,7 @@ export default function CategoryRecords() {
             </button>
           )}
           <button
-            onClick={() => { if (!families.length) return toast.error("لا توجد عائلات مسجّلة"); setModal({ mode: "add" }); }}
+            onClick={() => setModal({ mode: "add" })}
             data-testid="add-category-record-button"
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-tajawal font-bold text-white bg-gradient-to-l from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 transition-all shadow-md shadow-blue-600/25">
             <Plus className="w-5 h-5" /> إضافة سجل
@@ -310,7 +309,7 @@ export default function CategoryRecords() {
                         <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
                           <User className="w-4 h-4 text-blue-600" />
                         </div>
-                        <span className="font-tajawal font-bold text-slate-800 text-sm whitespace-nowrap">{famName(r.family_id)}</span>
+                        <span className="font-tajawal font-bold text-slate-800 text-sm whitespace-nowrap">{recName(r)}</span>
                       </div>
                     </td>
                     {catFields.map((f) => (
@@ -385,6 +384,7 @@ function RecordModal({ categoryId, catFields, families, famFields, modal, onClos
   const nameKey = famFields[0]?.key;
   const [famSearch, setFamSearch] = useState("");
   const [familyId, setFamilyId] = useState(modal.record?.family_id || "");
+  const [name, setName] = useState(modal.record?.name || "");
   const [form, setForm] = useState(() => {
     const init = {};
     catFields.forEach((f) => (init[f.key] = modal.record?.data?.[f.key] || ""));
@@ -405,8 +405,8 @@ function RecordModal({ categoryId, catFields, families, famFields, modal, onClos
   const mut = useMutation({
     mutationFn: () =>
       modal.mode === "add"
-        ? api.post("/category-records", { category_id: categoryId, family_id: familyId, data: form })
-        : api.put(`/category-records/${modal.record.id}`, { category_id: categoryId, family_id: familyId, data: form }),
+        ? api.post("/category-records", { category_id: categoryId, family_id: familyId, name, data: form })
+        : api.put(`/category-records/${modal.record.id}`, { category_id: categoryId, family_id: familyId, name, data: form }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["category-records", categoryId] });
       qc.invalidateQueries({ queryKey: ["categories"] });
@@ -431,11 +431,21 @@ function RecordModal({ categoryId, catFields, families, famFields, modal, onClos
             <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 transition-colors"><X className="w-5 h-5 text-slate-500" /></button>
           </div>
 
+          <div className="mb-5">
+            <label className="block text-sm font-tajawal font-bold text-slate-700 mb-2">
+              الاسم <span className="text-red-500">*</span>
+            </label>
+            <input value={name} onChange={(e) => setName(e.target.value)}
+              data-testid="category-record-name"
+              placeholder="اكتب الاسم (مثلاً: الاسم مع اسم الأب)"
+              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-tajawal focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Family selector */}
             <div>
               <label className="block text-sm font-tajawal font-bold text-slate-700 mb-2">
-                اختر الاسم من العائلات <span className="text-red-500">*</span>
+                ربط بعائلة (اختياري)
                 {selectedFam && (
                   <span className="mr-2 text-xs text-blue-600 font-normal bg-blue-50 px-2 py-0.5 rounded-full">
                     {selectedFam.data?.[nameKey] || "مختارة"}
@@ -488,11 +498,11 @@ function RecordModal({ categoryId, catFields, families, famFields, modal, onClos
             </div>
           </div>
 
-          <button type="button" disabled={!familyId || mut.isPending} onClick={() => mut.mutate()}
+          <button type="button" disabled={!name.trim() || mut.isPending} onClick={() => mut.mutate()}
             data-testid="save-category-record-button"
             className="w-full mt-5 bg-gradient-to-l from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-tajawal font-bold rounded-xl px-4 py-3 flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-md shadow-blue-600/25">
             {mut.isPending && <Loader2 className="w-5 h-5 animate-spin" />}
-            {familyId ? "حفظ" : "اختر الاسم أولاً"}
+            {name.trim() ? "حفظ" : "أدخل الاسم أولاً"}
           </button>
         </div>
       </div>
@@ -504,9 +514,7 @@ function RecordModal({ categoryId, catFields, families, famFields, modal, onClos
 function CategoryImportModal({ catFields, famFields, importData, importing, result, onSubmit, onClose }) {
   const { preview = [], suggested_header = 0, total_rows = 0 } = importData;
   const [headerRow, setHeaderRow] = useState(suggested_header);
-  const [matchFieldKey, setMatchFieldKey] = useState(famFields[0]?.key || "");
   const [matchColumn, setMatchColumn] = useState("");
-  const [fuzzy, setFuzzy] = useState(true);
   const [mapping, setMapping] = useState({});
 
   const columns = (preview[headerRow] || [])
@@ -516,8 +524,8 @@ function CategoryImportModal({ catFields, famFields, importData, importing, resu
   const rowLabel = (r, i) => `صف ${i + 1}: ${r.filter((c) => c != null && c !== "").slice(0, 4).map(String).join(" | ") || "(فارغ)"}`;
 
   const submit = () => {
-    if (matchColumn === "" ) return toast.error("حدّد عمود الاسم (للمطابقة مع العائلات)");
-    onSubmit({ headerRow, matchColumn, matchFieldKey, mapping, fuzzy });
+    if (matchColumn === "" ) return toast.error("حدّد عمود الاسم");
+    onSubmit({ headerRow, matchColumn, mapping });
   };
 
   return (
@@ -561,16 +569,7 @@ function CategoryImportModal({ catFields, famFields, importData, importing, resu
             </div>
           ) : (
             <>
-              <p className="text-sm font-tajawal text-slate-500 mb-4">حدّد عمود الاسم لمطابقته مع العائلات، ثم اربط باقي الأعمدة بخانات الفئة.</p>
-
-              <label className="flex items-center gap-3 bg-blue-50/60 border border-blue-100 rounded-xl px-4 py-2.5 mb-3 cursor-pointer">
-                <input type="checkbox" checked={fuzzy} onChange={(e) => setFuzzy(e.target.checked)}
-                  data-testid="category-fuzzy-toggle" className="w-4 h-4 accent-blue-600" />
-                <div>
-                  <div className="text-sm font-tajawal font-bold text-blue-800">تطابق تقريبي للأسماء العربية</div>
-                  <div className="text-xs font-tajawal text-blue-600">يعالج اختلاف التشكيل والهمزات والأسماء المختصرة</div>
-                </div>
-              </label>
+              <p className="text-sm font-tajawal text-slate-500 mb-4">حدّد عمود الاسم في الملف، ثم اربط باقي الأعمدة بخانات الفئة.</p>
 
               <div className="bg-slate-50/60 border border-slate-100 rounded-xl px-4 py-3 mb-3">
                 <label className="block text-xs font-tajawal font-bold text-slate-600 mb-1.5">صف العناوين في الملف</label>
@@ -582,16 +581,6 @@ function CategoryImportModal({ catFields, famFields, importData, importing, resu
               </div>
 
               <div className="space-y-3 mb-3">
-                <div className="flex items-center gap-3 bg-white/70 border border-slate-100 rounded-xl px-4 py-2.5">
-                  <div className="flex items-center gap-2 w-1/2 min-w-0">
-                    <ListChecks className="w-4 h-4 text-blue-500 shrink-0" />
-                    <span className="font-tajawal font-bold text-slate-800 text-sm">طابق الأسماء حسب</span>
-                  </div>
-                  <select value={matchFieldKey} onChange={(e) => setMatchFieldKey(e.target.value)} data-testid="category-match-field-select"
-                    className="flex-1 min-w-0 bg-white border border-slate-200 rounded-lg px-3 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50">
-                    {famFields.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
-                  </select>
-                </div>
                 <div className="flex items-center gap-3 bg-white/70 border border-slate-100 rounded-xl px-4 py-2.5">
                   <div className="flex items-center gap-2 w-1/2 min-w-0">
                     <ArrowLeftRight className="w-4 h-4 text-slate-300 shrink-0" />

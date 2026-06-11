@@ -1,31 +1,8 @@
-# مخيم العائدين — PRD
 
-## Original Problem Statement
-تحويل مشروع Camp من باك اند FastAPI (Firebase Admin) إلى فرونت اند فقط مع Firebase مدموج مباشرة (زي مشروع cards)، مع إبقاء المصادقة عبر Firebase Auth وحذف الباك اند، وبدون أي تغيير في الوظائف أو التصميم.
-
-## Architecture (since 2026-06-10)
-- **Frontend-only**: React + Firebase Web SDK (project: camp-50ca4)
-  - `src/lib/firebase.js`: hardcoded Firebase config (Auth + Realtime Database) — like cards project
-  - `src/lib/api.js`: full API shim that re-implements ALL old backend routes client-side (same paths, same responses) so pages stayed untouched:
-    - Auth (Firebase Auth signIn, session in localStorage camp_token/camp_user)
-    - users (create via secondary Firebase app so admin stays logged in), family-fields, families, aid-types, aid-records, individual-members, categories, category-fields, category-records, family-members, stats
-    - Excel import/export client-side via `xlsx` (SheetJS) replacing openpyxl, incl. Arabic fuzzy matching (normalize/match_score ported to JS)
-    - Default categories seeding on first /categories read
-- **Backend**: deleted — only a tiny FastAPI stub at /api/ to keep the platform service healthy (no logic, no Firebase)
-
-## What's been implemented
-- 2026-06-10: Full backend→frontend Firebase migration. Verified live: login (admin@camp.com), dashboard stats (160 families from real RTDB), families page with real data. No functional/design changes.
-
-## Notes
-- RTDB rules must allow authenticated reads/writes (currently working).
-- Deleting a user removes the DB record only; the Firebase Auth account remains (same as old backend behavior — first Firebase login auto-creates as admin).
-
-## Backlog
-- P2: tighten RTDB security rules per role (currently client-enforced roles, same trust level as before for authenticated users)
-
-## Dashboard enhancements (2026-06-11)
-- "الأفراد المسجّلون" card → **"إجمالي أفراد المخيم"** (total_camp_individuals): sum of the family "عدد الأفراد" field (auto-detected by label عدد + افراد/أفراد). Verified live = 743.
-- Added **إحصائيات الفئات الخاصة** section: per-category counts (أطفال/كبار السن/أرامل/مرضعات/حوامل/مرضى/إصابات) from category_records, with matching colors + lucide SVG icons.
-- `/stats` shim (api.js) now returns total_camp_individuals + category_stats.
-- Redesigned aid-by-type bar chart: gradient fills, rounded bars, per-bar colors, custom Arabic tooltip.
-- Scope-limited: nothing else changed per user request.
+## Special-categories: remove family-link requirement (2026-06-11)
+- Per user request, category records (الفئات الخاصة: أطفال etc.) no longer require linking to a family. The name (which already includes the father's name in the roster) is taken directly from the record/Excel.
+- `api.js` `importCategoryRecords`: removed family fuzzy/exact matching & "unmatched skip". Now stores `name` from the chosen name column; all rows with a name are imported (family_id = "").
+- `api.js` POST/PUT `/category-records`: persist `name`; `exportCategoryRecords`: name column = `r.name || family name`.
+- `CategoryRecords.jsx`: removed "no families" blockers (import + add); added `recName(r)=r.name||famName`; used in list/search/sort/display. Add/Edit modal: new required "الاسم" field, family link now "(اختياري)", save enabled by name. Import modal: removed fuzzy toggle + "طابق الأسماء حسب" selector; kept "عمود الاسم في الملف"; reworded helper.
+- Scope strictly limited to special categories. Families & aid-records matching untouched.
+- Verified live (admin@camp.com): add modal works without family; import modal opens with matching UI removed.

@@ -416,22 +416,10 @@ async function importAidRecords(fd, user) {
 }
 
 async function importCategoryRecords(fd, user) {
+  // الفئات الخاصة: لا مطابقة بالعائلات — يؤخذ الاسم مباشرة من عمود الاسم في الكشف
   const categoryId = fd.get("category_id");
   const headerRow = parseInt(fd.get("header_row") || "0", 10);
   const matchColumn = parseInt(fd.get("match_column"), 10);
-  const matchFieldKey = fd.get("match_field_key");
-  const fuzzy = (fd.get("fuzzy") ?? "true") !== "false";
-  const threshold = parseFloat(fd.get("threshold") || "0.6");
-
-  const families = await listRecords("families");
-  const exactIndex = {};
-  for (const fam of families) {
-    const val = String(fam.data?.[matchFieldKey] ?? "").trim();
-    if (val) {
-      const norm = normalizeArabic(val);
-      if (norm && !(norm in exactIndex)) exactIndex[norm] = fam.id;
-    }
-  }
 
   const fieldCol = {};
   const mappingRaw = fd.get("mapping");
@@ -449,33 +437,19 @@ async function importCategoryRecords(fd, user) {
 
   const allRows = await readSheetRows(fd.get("file"));
   let created = 0;
-  let fuzzyMatched = 0;
-  const unmatched = [];
 
   for (const row of allRows.slice(headerRow + 1)) {
     if (rowIsEmpty(row)) continue;
     const ident = cellStr(row[matchColumn]);
     if (!ident) continue;
 
-    let famId = exactIndex[normalizeArabic(ident)];
-    if (!famId && fuzzy) {
-      const [bestFam] = findBestFamily(families, matchFieldKey, ident, threshold);
-      if (bestFam) {
-        famId = bestFam.id;
-        fuzzyMatched++;
-      }
-    }
-    if (!famId) {
-      unmatched.push(ident);
-      continue;
-    }
-
     const data = {};
     for (const [fkey, idx] of Object.entries(fieldCol)) data[fkey] = cellStr(row[idx]);
 
     await pushRecord("category_records", {
       category_id: categoryId,
-      family_id: famId,
+      family_id: "",
+      name: ident,
       data,
       created_at: nowIso(),
       updated_at: nowIso(),
@@ -483,12 +457,7 @@ async function importCategoryRecords(fd, user) {
     });
     created++;
   }
-  return {
-    created,
-    fuzzy_matched: fuzzyMatched,
-    unmatched_count: unmatched.length,
-    unmatched: unmatched.slice(0, 50),
-  };
+  return { created, fuzzy_matched: 0, unmatched_count: 0, unmatched: [] };
 }
 
 // ── Export implementations ───────────────────────────────────────────────────
@@ -536,8 +505,8 @@ async function exportCategoryRecords(categoryId) {
   const rows = [["الاسم (العائلة)", ...catFields.map((f) => f.label)]];
   for (const r of records) {
     const famData = families[r.family_id] || {};
-    const famName = nameField ? famData[nameField] ?? "" : "";
-    rows.push([famName, ...catFields.map((f) => r.data?.[f.key] ?? "")]);
+    const displayName = r.name || (nameField ? famData[nameField] ?? "" : "");
+    rows.push([displayName, ...catFields.map((f) => r.data?.[f.key] ?? "")]);
   }
   return makeXlsxBlob(rows, "Records");
 }
@@ -844,6 +813,7 @@ async function handle(method, path, params, body) {
     return pushRecord("category_records", {
       category_id: body.category_id,
       family_id: body.family_id || "",
+      name: body.name || "",
       data: body.data || {},
       created_at: nowIso(),
       updated_at: nowIso(),
@@ -867,6 +837,7 @@ async function handle(method, path, params, body) {
     if (!(await getRecord("category_records", seg[1]))) throw httpError(404, "السجل غير موجود");
     await updateRecord("category_records", seg[1], {
       family_id: body.family_id || "",
+      name: body.name || "",
       data: body.data || {},
       updated_at: nowIso(),
     });
