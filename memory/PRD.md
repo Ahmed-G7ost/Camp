@@ -22,3 +22,10 @@
 
 ## Backlog
 - P2: tighten RTDB security rules per role (currently client-enforced roles, same trust level as before for authenticated users)
+
+## Dashboard enhancements (2026-06-11)
+- "الأفراد المسجّلون" card → **"إجمالي أفراد المخيم"** (total_camp_individuals): sum of the family "عدد الأفراد" field (auto-detected by label عدد + افراد/أفراد). Verified live = 743.
+- Added **إحصائيات الفئات الخاصة** section: per-category counts (أطفال/كبار السن/أرامل/مرضعات/حوامل/مرضى/إصابات) from category_records, with matching colors + lucide SVG icons.
+- `/stats` shim (api.js) now returns total_camp_individuals + category_stats.
+- Redesigned aid-by-type bar chart: gradient fills, rounded bars, per-bar colors, custom Arabic tooltip.
+- Scope-limited: nothing else changed per user request.

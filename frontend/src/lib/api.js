@@ -872,12 +872,18 @@ async function handle(method, path, params, body) {
   // ── Stats ──
   if (path === "/stats" && method === "GET") {
     requireAuth();
-    const [families, individualMembers, records, aidTypes] = await Promise.all([
-      listRecords("families"),
-      listRecords("individual_members"),
-      listRecords("aid_records"),
-      listRecords("aid_types"),
-    ]);
+    await seedCategories();
+    const [families, individualMembers, records, aidTypes, famFields, categories, catRecords] =
+      await Promise.all([
+        listRecords("families"),
+        listRecords("individual_members"),
+        listRecords("aid_records"),
+        listRecords("aid_types"),
+        sortedFields(),
+        listRecords("categories"),
+        listRecords("category_records"),
+      ]);
+
     const byType = {};
     for (const r of records) {
       const name = r.aid_type_name || "غير محدد";
@@ -886,12 +892,40 @@ async function handle(method, path, params, body) {
     const recent = [...records]
       .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""))
       .slice(0, 5);
+
+    // إجمالي أفراد المخيم: مجموع قيم حقل "عدد الأفراد" في العائلات
+    const countField =
+      famFields.find((f) => /عدد/.test(f.label || "") && /افراد|أفراد/.test(f.label || "")) ||
+      famFields.find((f) => /عدد/.test(f.label || "") && f.type === "number");
+    let totalCampIndividuals = 0;
+    if (countField) {
+      for (const fam of families) {
+        const n = parseInt(fam.data?.[countField.key], 10);
+        if (!isNaN(n)) totalCampIndividuals += n;
+      }
+    }
+
+    // إحصائيات الفئات الخاصة (عدد سجلات كل فئة)
+    const catCounts = {};
+    for (const r of catRecords) catCounts[r.category_id] = (catCounts[r.category_id] || 0) + 1;
+    const categoryStats = categories
+      .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        key: c.key,
+        icon: c.icon || "Layers",
+        count: catCounts[c.id] || 0,
+      }));
+
     return {
       total_families: families.length,
       total_individual_members: individualMembers.length,
+      total_camp_individuals: totalCampIndividuals,
       total_aid_records: records.length,
       total_aid_types: aidTypes.length,
       aid_by_type: Object.entries(byType).map(([name, count]) => ({ name, count })),
+      category_stats: categoryStats,
       recent_records: recent,
     };
   }
