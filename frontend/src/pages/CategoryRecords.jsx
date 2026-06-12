@@ -198,7 +198,6 @@ export default function CategoryRecords() {
     while (i < rows.length) {
       const name = recName(rows[i].r).trim();
       let j = i + 1;
-      let j = i + 1;
       if (name && name !== "—" && !isStatusName(name)) {
         while (j < rows.length && recName(rows[j].r).trim() === name) j++;
       }
