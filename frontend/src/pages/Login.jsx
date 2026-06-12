@@ -262,7 +262,11 @@ export default function Login() {
             <Tent className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-cairo font-extrabold text-slate-900">مخيم العائدين</h1>
-          <p className="text-slate-500 font-tajawal mt-1">نظام إدارة وتوزيع المساعدات</p>
+          <p className="text-slate-500 font-tajawal mt-1" data-testid="login-subtitle">
+            {loginType === "admin"
+              ? "نظام إدارة وتوزيع المساعدات"
+              : "بوابة العائلات — متابعة بياناتكم وخدماتكم"}
+          </p>
         </div>
 
         {/* Form */}
@@ -415,3 +419,4 @@ export default function Login() {
     </div>
   );
 }
+
