@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import api, { apiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import ConfirmDialog from "../components/ConfirmDialog";
-import { NameBadge, GenderBadge, isGenderField, isNameField, ColorName } from "../components/Colorize";
+import { NameBadge, GenderBadge, isGenderField, isNameField, ColorName, genderOf } from "../components/Colorize";
 import { isBirthDateField, calcAgeLabel, formatDateDMY, toISO, ageKeyOf, parseDate } from "../lib/age";
 import {
   Plus, Search, Loader2, Pencil, Trash2, ArrowRight, User,
@@ -42,6 +42,21 @@ function computeAge(field, value) {
   return isNaN(n) ? null : n;
 }
 
+// Compute age in MONTHS from a date-field value (or convert a numeric years field to months).
+function computeAgeMonths(field, value) {
+  if (!value && value !== 0) return null;
+  if (field?.type === "date") {
+    const b = parseDate(value);
+    if (!b) return null;
+    const t = new Date();
+    let months = (t.getFullYear() - b.getFullYear()) * 12 + (t.getMonth() - b.getMonth());
+    if (t.getDate() < b.getDate()) months--;
+    return months < 0 ? null : months;
+  }
+  const n = parseInt(value, 10);
+  return isNaN(n) ? null : n * 12;
+}
+
 export default function CategoryRecords() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -51,8 +66,10 @@ export default function CategoryRecords() {
   const [search, setSearch] = useState("");
   const [sortDir, setSortDir] = useState("asc");
   const [ageFieldKey, setAgeFieldKey] = useState("");
+  const [ageUnit, setAgeUnit] = useState("years"); // "years" | "months"
   const [minAge, setMinAge] = useState("");
   const [maxAge, setMaxAge] = useState("");
+  const [genderFilter, setGenderFilter] = useState(""); // "" | "male" | "female"
   const [filterFieldKey, setFilterFieldKey] = useState("");
   const [filterFieldVal, setFilterFieldVal] = useState("");
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
@@ -129,7 +146,12 @@ export default function CategoryRecords() {
   const activeAgeField = ageFields.find((f) => f.key === ageFieldKey) || ageFields[0];
   const ageFilterActive = !!activeAgeField && (minAge !== "" || maxAge !== "");
   const fieldFilterActive = !!filterFieldKey && filterFieldVal.trim() !== "";
+  
 
+  // حقل الجنس (إن وُجد ضمن خانات الفئة) لتفعيل فلترة الجنس
+  const genderField = catFields.find((f) => isGenderField(f.label));
+  const genderFilterActive = !!genderField && genderFilter !== "";
+  
   const filtered = records
     .filter((r) => {
       if (!search) return true;
@@ -142,8 +164,15 @@ export default function CategoryRecords() {
       return String(r.data?.[filterFieldKey] || "").toLowerCase().includes(filterFieldVal.trim().toLowerCase());
     })
     .filter((r) => {
+      if (!genderFilterActive) return true;
+      return genderOf(r.data?.[genderField.key]) === genderFilter;
+    })
+    
+    .filter((r) => {
       if (!ageFilterActive) return true;
-      const age = computeAge(activeAgeField, r.data?.[activeAgeField.key]);
+      const age = ageUnit === "months"
+        ? computeAgeMonths(activeAgeField, r.data?.[activeAgeField.key])
+        : computeAge(activeAgeField, r.data?.[activeAgeField.key]);
       if (age == null) return false;
       if (minAge !== "" && age < Number(minAge)) return false;
       if (maxAge !== "" && age > Number(maxAge)) return false;
@@ -255,6 +284,19 @@ export default function CategoryRecords() {
                 className="w-40 bg-white border border-slate-200 rounded-lg px-3 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:opacity-50" />
             </div>
 
+            {/* gender filter */}
+            {genderField && (
+              <div>
+                <label className="block text-xs font-tajawal font-bold text-slate-500 mb-1">الجنس</label>
+                <select value={genderFilter} onChange={(e) => setGenderFilter(e.target.value)} data-testid="gender-filter-select"
+                  className="bg-white border border-slate-200 rounded-lg px-3 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+                  <option value="">— الكل —</option>
+                  <option value="male">ذكر</option>
+                  <option value="female">أنثى</option>
+                </select>
+              </div>
+            )}
+            
             {/* age filter */}
             {ageFields.length > 0 && (
               <>
@@ -268,24 +310,36 @@ export default function CategoryRecords() {
                   </div>
                 )}
                 <div>
-                  <label className="block text-xs font-tajawal font-bold text-slate-500 mb-1">العمر من (سنة)</label>
+                                    <label className="block text-xs font-tajawal font-bold text-slate-500 mb-1">الوحدة</label>
+                  <select value={ageUnit} onChange={(e) => setAgeUnit(e.target.value)} data-testid="age-unit-select"
+                    className="bg-white border border-slate-200 rounded-lg px-3 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+                    <option value="years">بالسنوات</option>
+                    <option value="months">بالأشهر</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-tajawal font-bold text-slate-500 mb-1">
+                    {ageUnit === "months" ? "العمر من (شهر)" : "العمر من (سنة)"}
+                  </label>
                   <input type="number" min="0" value={minAge} onChange={(e) => setMinAge(e.target.value)} data-testid="age-min-input"
                     placeholder="0" className="w-24 bg-white border border-slate-200 rounded-lg px-3 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
                 </div>
                 <div>
-                  <label className="block text-xs font-tajawal font-bold text-slate-500 mb-1">إلى (سنة)</label>
+                   <label className="block text-xs font-tajawal font-bold text-slate-500 mb-1">
+                    {ageUnit === "months" ? "إلى (شهر)" : "إلى (سنة)"}
+                  </label>
                   <input type="number" min="0" value={maxAge} onChange={(e) => setMaxAge(e.target.value)} data-testid="age-max-input"
-                    placeholder="5" className="w-24 bg-white border border-slate-200 rounded-lg px-3 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+                     placeholder={ageUnit === "months" ? "12" : "5"} className="w-24 bg-white border border-slate-200 rounded-lg px-3 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
                 </div>
               </>
             )}
 
-            {(fieldFilterActive || ageFilterActive) && (
+            {(fieldFilterActive || ageFilterActive || genderFilterActive) && (
               <>
                 <span className="text-xs font-tajawal text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full font-bold">
                   {filtered.length} نتيجة
                 </span>
-                <button onClick={() => { setMinAge(""); setMaxAge(""); setFilterFieldKey(""); setFilterFieldVal(""); }} data-testid="clear-filters-button"
+                <button onClick={() => { setMinAge(""); setMaxAge(""); setFilterFieldKey(""); setFilterFieldVal(""); setGenderFilter(""); }} data-testid="clear-filters-button"
                   className="flex items-center gap-1 px-3 py-2 rounded-lg font-tajawal font-bold text-sm text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-all">
                   <X className="w-4 h-4" /> إلغاء الفلاتر
                 </button>
