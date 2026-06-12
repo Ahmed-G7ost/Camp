@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -291,6 +291,7 @@ export default function AidRecords() {
           families={families}
           aidTypes={aidTypes}
           fields={fields}
+          records={records}
           onClose={() => setAddModal(false)}
         />
       )}
@@ -333,8 +334,25 @@ export default function AidRecords() {
   );
 }
 
+// ─── Duplicate aid check helper ────────────────────────────────────────────────
+function getDuplicateWarning(records, familyId, aidTypeId, selectedDate) {
+  if (!familyId || !aidTypeId || !selectedDate) return null;
+  const selDate = new Date(selectedDate);
+  const matching = records
+    .filter((r) => r.family_id === familyId && r.aid_type_id === aidTypeId && r.date)
+    .map((r) => {
+      const diffDays = Math.floor((selDate - new Date(r.date)) / 86400000);
+      return { ...r, diffDays };
+    })
+    .filter((r) => r.diffDays >= 0 && r.diffDays <= 7)
+    .sort((a, b) => a.diffDays - b.diffDays);
+  if (!matching.length) return null;
+  const rec = matching[0];
+  return { daysAgo: rec.diffDays, date: rec.date, aidTypeName: rec.aid_type_name };
+}
+
 // ─── Manual Aid Record Modal ──────────────────────────────────────────────────
-function ManualAidModal({ families, aidTypes, fields, onClose }) {
+function ManualAidModal({ families, aidTypes, fields, records, onClose }) {
   const qc = useQueryClient();
   const nameKey = fields[0]?.key;
   const [search, setSearch] = useState("");
@@ -345,6 +363,11 @@ function ManualAidModal({ families, aidTypes, fields, onClose }) {
     quantity: "",
     notes: "",
   });
+
+  const dupWarning = useMemo(
+    () => getDuplicateWarning(records, selectedFamily?.id, form.aid_type_id, form.date),
+    [records, selectedFamily?.id, form.aid_type_id, form.date]
+  );
 
   const filtered = families
     .filter((f) => {
@@ -451,12 +474,27 @@ function ManualAidModal({ families, aidTypes, fields, onClose }) {
             </div>
           </div>
 
+          {dupWarning && (
+            <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mt-4" data-testid="duplicate-aid-warning">
+              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-tajawal font-bold text-amber-800 text-sm">تنبيه: تكرار محتمل</p>
+                <p className="font-tajawal text-amber-700 text-sm mt-0.5">
+                  هذه العائلة استلمت <span className="font-bold">{dupWarning.aidTypeName}</span>{" "}
+                  {dupWarning.daysAgo === 0
+                    ? "في نفس اليوم"
+                    : `قبل ${dupWarning.daysAgo} ${dupWarning.daysAgo === 1 ? "يوم" : "أيام"}`}
+                  {" "}({dupWarning.date})
+                </p>
+              </div>
+            </div>
+          )}
           <button
             type="button"
             disabled={!selectedFamily || mut.isPending}
             onClick={() => mut.mutate()}
             data-testid="save-manual-aid-button"
-            className="w-full mt-5 bg-gradient-to-l from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-tajawal font-bold rounded-xl px-4 py-3 flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-md shadow-green-600/25">
+            className="w-full mt-4 bg-gradient-to-l from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-tajawal font-bold rounded-xl px-4 py-3 flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-md shadow-green-600/25">
             {mut.isPending && <Loader2 className="w-5 h-5 animate-spin" />}
             {selectedFamily ? `تسجيل مساعدة لـ ${selectedFamily.data?.[fields[0]?.key] || "العائلة"}` : "اختر عائلة أولاً"}
           </button>
