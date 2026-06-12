@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import api from "../lib/api";
@@ -25,21 +25,13 @@ export default function FamilyPortal() {
     notes: ""
   });
 
-  useEffect(() => {
-    if (!user || user.role !== "family") {
-      navigate("/login");
-      return;
-    }
-    loadData();
-  }, [user, navigate]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const [fieldsRes, familyRes, membersRes] = await Promise.all([
         api.get("/family-fields"),
-        api.get(`/families/${user.family_id}`),
-        api.get(`/individual-members?family_id=${user.family_id}`)
+        api.get(`/families/${user?.family_id}`),
+        api.get(`/individual-members?family_id=${user?.family_id}`)
       ]);
       setFields(fieldsRes.data || []);
       setFamily(familyRes.data || {});
@@ -54,8 +46,15 @@ export default function FamilyPortal() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
+  useEffect(() => {
+    if (!user || user.role !== "family") {
+      navigate("/login");
+      return;
+    }
+    loadData();
+  }, [user, navigate, loadData]);
   const handleSave = async () => {
     try {
       await api.put(`/families/${user.family_id}`, { data: editData });
@@ -114,8 +113,7 @@ export default function FamilyPortal() {
       toast.error("❌ فشل حذف الفرد");
     }
   };
-
- if (loading) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -167,7 +165,6 @@ export default function FamilyPortal() {
       f.label.includes("عمر")
     )
   );
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50">
       {/* Header */}
