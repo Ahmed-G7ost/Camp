@@ -31,12 +31,17 @@ export default function FamilyPortal() {
         api.get(`/families/${user.family_id}`),
         api.get(`/individual-members?family_id=${user.family_id}`)
       ]);
-      setFields(fieldsRes.data);
-      setFamily(familyRes.data);
-      setEditData(familyRes.data.data || {});
-      setMembers(membersRes.data);
+      setFields(fieldsRes.data || []);
+      setFamily(familyRes.data || {});
+      setEditData(familyRes.data?.data || {});
+      setMembers(membersRes.data || []);
     } catch (err) {
-      toast.error("فشل تحميل البيانات");
+      console.error("خطأ في تحميل البيانات:", err);
+      toast.error(err.message || "فشل تحميل البيانات");
+      // تعيين قيم افتراضية حتى لو فشل التحميل
+      setFields([]);
+      setFamily(null);
+      setMembers([]);
     } finally {
       setLoading(false);
     }
@@ -57,6 +62,38 @@ export default function FamilyPortal() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  // إذا لم توجد بيانات للعائلة
+  if (!family) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50">
+        <div className="bg-white border-b shadow-sm">
+          <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center">
+                <Tent className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-cairo font-bold text-slate-900">مخيم العائدين</h1>
+                <p className="text-sm text-slate-500 font-tajawal">بوابة العائلات</p>
+              </div>
+            </div>
+            <button
+              onClick={logout}
+              className="px-4 py-2 bg-red-50 text-red-600 font-tajawal rounded-lg hover:bg-red-100 transition-colors"
+            >
+              تسجيل خروج
+            </button>
+          </div>
+        </div>
+        <div className="max-w-5xl mx-auto px-4 py-8">
+          <div className="bg-white rounded-2xl shadow-sm border p-8 text-center">
+            <p className="text-slate-600 font-tajawal text-lg">لا توجد بيانات لعرضها. الرجاء التواصل مع الإدارة.</p>
+          </div>
+        </div>
       </div>
     );
   }
