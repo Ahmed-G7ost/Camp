@@ -66,7 +66,8 @@ export default function CategoryRecords() {
   const [search, setSearch] = useState("");
   const [sortDir, setSortDir] = useState("asc");
   const [ageFieldKey, setAgeFieldKey] = useState("");
-  const [ageUnit, setAgeUnit] = useState("years"); // "years" | "months"
+  const [minUnit, setMinUnit] = useState("months"); // وحدة الحد الأدنى: "years" | "months"
+  const [maxUnit, setMaxUnit] = useState("years");  // وحدة الحد الأعلى: "years" | "months"
   const [minAge, setMinAge] = useState("");
   const [maxAge, setMaxAge] = useState("");
   const [genderFilter, setGenderFilter] = useState(""); // "" | "male" | "female"
@@ -170,12 +171,17 @@ export default function CategoryRecords() {
     
     .filter((r) => {
       if (!ageFilterActive) return true;
-      const age = ageUnit === "months"
-        ? computeAgeMonths(activeAgeField, r.data?.[activeAgeField.key])
-        : computeAge(activeAgeField, r.data?.[activeAgeField.key]);
-      if (age == null) return false;
-      if (minAge !== "" && age < Number(minAge)) return false;
-      if (maxAge !== "" && age > Number(maxAge)) return false;
+      const years = computeAge(activeAgeField, r.data?.[activeAgeField.key]);
+      const months = computeAgeMonths(activeAgeField, r.data?.[activeAgeField.key]);
+      if (years == null || months == null) return false;
+      if (minAge !== "") {
+        const ok = minUnit === "years" ? years >= Number(minAge) : months >= Number(minAge);
+        if (!ok) return false;
+      }
+      if (maxAge !== "") {
+        const ok = maxUnit === "years" ? years <= Number(maxAge) : months <= Number(maxAge);
+        if (!ok) return false;
+      }
       return true;
     })
     .sort((a, b) => {
@@ -191,6 +197,7 @@ export default function CategoryRecords() {
     let i = 0;
     while (i < rows.length) {
       const name = recName(rows[i].r).trim();
+      let j = i + 1;
       let j = i + 1;
       if (name && name !== "—" && !isStatusName(name)) {
         while (j < rows.length && recName(rows[j].r).trim() === name) j++;
@@ -310,26 +317,28 @@ export default function CategoryRecords() {
                   </div>
                 )}
                 <div>
-                                    <label className="block text-xs font-tajawal font-bold text-slate-500 mb-1">الوحدة</label>
-                  <select value={ageUnit} onChange={(e) => setAgeUnit(e.target.value)} data-testid="age-unit-select"
-                    className="bg-white border border-slate-200 rounded-lg px-3 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50">
-                    <option value="years">بالسنوات</option>
-                    <option value="months">بالأشهر</option>
-                  </select>
+                  <label className="block text-xs font-tajawal font-bold text-slate-500 mb-1">العمر من</label>
+                  <div className="flex gap-1">
+                    <input type="number" min="0" value={minAge} onChange={(e) => setMinAge(e.target.value)} data-testid="age-min-input"
+                      placeholder="0" className="w-20 bg-white border border-slate-200 rounded-lg px-3 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+                    <select value={minUnit} onChange={(e) => setMinUnit(e.target.value)} data-testid="age-min-unit-select"
+                      className="bg-white border border-slate-200 rounded-lg px-2 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+                      <option value="months">شهر</option>
+                      <option value="years">سنة</option>
+                    </select>
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-tajawal font-bold text-slate-500 mb-1">
-                    {ageUnit === "months" ? "العمر من (شهر)" : "العمر من (سنة)"}
-                  </label>
-                  <input type="number" min="0" value={minAge} onChange={(e) => setMinAge(e.target.value)} data-testid="age-min-input"
-                    placeholder="0" className="w-24 bg-white border border-slate-200 rounded-lg px-3 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
-                </div>
-                <div>
-                   <label className="block text-xs font-tajawal font-bold text-slate-500 mb-1">
-                    {ageUnit === "months" ? "إلى (شهر)" : "إلى (سنة)"}
-                  </label>
-                  <input type="number" min="0" value={maxAge} onChange={(e) => setMaxAge(e.target.value)} data-testid="age-max-input"
-                     placeholder={ageUnit === "months" ? "12" : "5"} className="w-24 bg-white border border-slate-200 rounded-lg px-3 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+                  <label className="block text-xs font-tajawal font-bold text-slate-500 mb-1">إلى</label>
+                  <div className="flex gap-1">
+                    <input type="number" min="0" value={maxAge} onChange={(e) => setMaxAge(e.target.value)} data-testid="age-max-input"
+                      placeholder="12" className="w-20 bg-white border border-slate-200 rounded-lg px-3 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+                    <select value={maxUnit} onChange={(e) => setMaxUnit(e.target.value)} data-testid="age-max-unit-select"
+                      className="bg-white border border-slate-200 rounded-lg px-2 py-2 font-tajawal text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+                      <option value="months">شهر</option>
+                      <option value="years">سنة</option>
+                    </select>
+                  </div>
                 </div>
               </>
             )}
