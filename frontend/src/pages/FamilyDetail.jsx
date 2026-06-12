@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -7,7 +7,7 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import { namePalette, GenderBadge, isGenderField } from "../components/Colorize";
 import { isBirthDateField, calcAgeLabel, formatDateDMY, ageKeyOf } from "../lib/age";
 import {
-  ArrowRight, Loader2, HandHeart, Plus, Trash2, Calendar, X,
+  ArrowRight, Loader2, HandHeart, Plus, Trash2, Calendar, X, AlertTriangle,
 } from "lucide-react";
 
 export default function FamilyDetail() {
@@ -115,7 +115,7 @@ export default function FamilyDetail() {
         </div>
       )}
 
-      {showAdd && <AddAidModal familyId={id} aidTypes={aidTypes} onClose={() => setShowAdd(false)} />}
+      {showAdd && <AddAidModal familyId={id} aidTypes={aidTypes} records={records} onClose={() => setShowAdd(false)} />}
 
       <ConfirmDialog
         isOpen={!!confirmDelete}
@@ -130,7 +130,7 @@ export default function FamilyDetail() {
   );
 }
 
-function AddAidModal({ familyId, aidTypes, onClose }) {
+function AddAidModal({ familyId, aidTypes, records, onClose }) {
   const qc = useQueryClient();
   const [form, setForm] = useState({
     aid_type_id: aidTypes[0]?.id || "",
@@ -138,6 +138,23 @@ function AddAidModal({ familyId, aidTypes, onClose }) {
     quantity: "",
     notes: "",
   });
+
+  // ── Duplicate check ────────────────────────────────────────────────────────
+  const dupWarning = useMemo(() => {
+    if (!form.aid_type_id || !form.date) return null;
+    const selDate = new Date(form.date);
+    const matching = (records || [])
+      .filter((r) => r.family_id === familyId && r.aid_type_id === form.aid_type_id && r.date)
+      .map((r) => {
+        const diffDays = Math.floor((selDate - new Date(r.date)) / 86400000);
+        return { ...r, diffDays };
+      })
+      .filter((r) => r.diffDays >= 0 && r.diffDays <= 7)
+      .sort((a, b) => a.diffDays - b.diffDays);
+    if (!matching.length) return null;
+    const rec = matching[0];
+    return { daysAgo: rec.diffDays, date: rec.date, aidTypeName: rec.aid_type_name };
+  }, [records, familyId, form.aid_type_id, form.date]);
 
   const mut = useMutation({
     mutationFn: () => api.post("/aid-records", { family_id: familyId, ...form }),
@@ -188,6 +205,21 @@ function AddAidModal({ familyId, aidTypes, onClose }) {
               data-testid="aid-notes-input"
               className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-tajawal focus:outline-none focus:ring-2 focus:ring-green-500/50" />
           </div>
+          {dupWarning && (
+            <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3" data-testid="duplicate-aid-warning">
+              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-tajawal font-bold text-amber-800 text-sm">تنبيه: تكرار محتمل</p>
+                <p className="font-tajawal text-amber-700 text-sm mt-0.5">
+                  هذه العائلة استلمت <span className="font-bold">{dupWarning.aidTypeName}</span>{" "}
+                  {dupWarning.daysAgo === 0
+                    ? "في نفس اليوم"
+                    : `قبل ${dupWarning.daysAgo} ${dupWarning.daysAgo === 1 ? "يوم" : "أيام"}`}
+                  {" "}({dupWarning.date})
+                </p>
+              </div>
+            </div>
+          )}
           <button type="submit" disabled={mut.isPending} data-testid="save-aid-record-button"
             className="w-full bg-gradient-to-l from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-tajawal font-bold rounded-xl px-4 py-3 flex items-center justify-center gap-2 transition-all disabled:opacity-60 shadow-md shadow-green-600/25">
             {mut.isPending && <Loader2 className="w-5 h-5 animate-spin" />} حفظ المساعدة
