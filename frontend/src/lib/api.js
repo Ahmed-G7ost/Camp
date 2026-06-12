@@ -630,6 +630,13 @@ async function handle(method, path, params, body) {
     await deleteCollection("aid_records");
     return { ok: true, deleted: count };
   }
+// إضافة endpoint للحصول على بيانات عائلة بواسطة ID (للعائلات)
+  if (seg[0] === "families" && seg.length === 2 && method === "GET") {
+    requireAuth();
+    const fam = await getRecord("families", seg[1]);
+    if (!fam) throw httpError(404, "العائلة غير موجودة");
+    return fam;
+  }
   if (seg[0] === "families" && seg.length === 2 && method === "PUT") {
     requireAuth();
     if (!(await getRecord("families", seg[1]))) throw httpError(404, "العائلة غير موجودة");

@@ -13,6 +13,7 @@ import Settings from "./pages/Settings";
 import IndividualMembers from "./pages/IndividualMembers";
 import Categories from "./pages/Categories";
 import CategoryRecords from "./pages/CategoryRecords";
+import FamilyPortal from "./pages/FamilyPortal";
 import { Loader2 } from "lucide-react";
 
 function Protected({ children, adminOnly }) {
@@ -32,6 +33,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/family-portal" element={<FamilyPortal />} />
       <Route
         path="/"
         element={
