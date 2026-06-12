@@ -1,8 +1,16 @@
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
 import { ref as dbRef, get as dbGet } from "firebase/database";
+import { signInAnonymously } from "firebase/auth";
 
 // تسجيل دخول العائلة باستخدام رقم الهوية
 export async function loginFamily(nationalId) {
+  // تسجيل دخول مجهول في Firebase للحصول على صلاحيات القراءة
+  try {
+    await signInAnonymously(auth);
+  } catch (error) {
+    console.error("خطأ في المصادقة:", error);
+  }
+  
   const familiesRef = dbRef(db, "families");
   const snap = await dbGet(familiesRef);
   
@@ -38,6 +46,15 @@ export async function loginFamily(nationalId) {
 
 // الحصول على بيانات عائلة معينة
 export async function getFamilyById(familyId) {
+  // تسجيل دخول مجهول في Firebase للحصول على صلاحيات القراءة
+  try {
+    if (!auth.currentUser) {
+      await signInAnonymously(auth);
+    }
+  } catch (error) {
+    console.error("خطأ في المصادقة:", error);
+  }
+  
   const familyRef = dbRef(db, `families/${familyId}`);
   const snap = await dbGet(familyRef);
   
