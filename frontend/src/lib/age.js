@@ -56,10 +56,18 @@ export function calcAgeLabel(value) {
     months += 12;
   }
   if (years < 0) return "";
-  if (years < 1) return months < 1 ? "أقل من شهر" : `${months} شهر`;
+  if (years < 1) return monthsLabel(months);
   return `${years} سنة`;
 }
 
+// صياغة الأشهر بصيغة عربية سليمة: أقل من شهر / شهر / شهران / 3–10 أشهر / 11+ شهراً
+export function monthsLabel(months) {
+  if (months < 1) return "أقل من شهر";
+  if (months === 1) return "شهر";
+  if (months === 2) return "شهران";
+  if (months <= 10) return `${months} أشهر`;
+  return `${months} شهراً`;
+}
 // هل هذا الحقل حقل تاريخ ميلاد؟
 export function isBirthDateField(f) {
   return f?.type === "date" && /ميلاد|ولاد/.test(f?.label || "");
