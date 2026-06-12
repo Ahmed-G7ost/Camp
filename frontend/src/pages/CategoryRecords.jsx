@@ -22,6 +22,10 @@ async function downloadFile(url, filename) {
   URL.revokeObjectURL(link.href);
 }
 
+// مسميات الحالة الاجتماعية المكتوبة مكان اسم الأب (أرملة، مطلقة، الزوج أسير...) — لا يُطبق عليها التجميع
+const STATUS_NAME_RE = /^(?:ال)?زوج(?:ة|ها)?\s*(?:ال)?(?:أسير|اسير|شهيد|متوفي|متوفى|مفقود|سجين)(?:ة|ه)?$|^(?:ال)?(?:أرمل|ارمل|مطلق|أسير|اسير|شهيد|متوفي|متوفى|مفقود|سجين)(?:ة|ه)?$/;
+export const isStatusName = (n) => STATUS_NAME_RE.test(String(n || "").trim().replace(/\s+/g, " "));
+
 // Compute age (years) from a date-field value, or read a numeric age field directly.
 function computeAge(field, value) {
   if (!value && value !== 0) return null;
@@ -149,6 +153,24 @@ export default function CategoryRecords() {
       const cmp = recName(a).localeCompare(recName(b), "ar");
       return sortDir === "asc" ? cmp : -cmp;
     });
+
+  // قسم الأطفال: دمج خلية اسم الأب (rowspan) للأطفال الأشقّاء المتتاليين بنفس الاسم،
+  // مع استثناء مسميات الحالة (أرملة، مطلقة، الزوج أسير...) فتبقى كما هي.
+  const groupByFather = category?.key === "children";
+  const rows = filtered.map((r) => ({ r, span: 1 }));
+  if (groupByFather) {
+    let i = 0;
+    while (i < rows.length) {
+      const name = recName(rows[i].r).trim();
+      let j = i + 1;
+      if (name && name !== "—" && !isStatusName(name)) {
+        while (j < rows.length && recName(rows[j].r).trim() === name) j++;
+      }
+      rows[i].span = j - i;
+      for (let k = i + 1; k < j; k++) rows[k].span = 0;
+      i = j;
+    }
+  }
 
   if (isLoading)
     return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>;
@@ -309,11 +331,13 @@ export default function CategoryRecords() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.map((r) => (
+                {rows.map(({ r, span }) => (
                   <tr key={r.id} className="hover:bg-slate-50/70 transition-colors" data-testid={`category-row-${r.id}`}>
-                    <td className="px-4 py-3.5 min-w-[160px]">
+                    {span > 0 && (
+                      <td rowSpan={span} className={`px-4 py-3.5 min-w-[160px] align-middle ${span > 1 ? "bg-white border-e border-slate-100" : ""}`}>
                       <NameBadge name={recName(r)} testId={`category-record-name-${r.id}`} />
                     </td>
+                    )}
                     {catFields.map((f) => (
                       <Fragment key={f.id}>
                         <td className="px-4 py-3.5 font-tajawal text-slate-700 text-sm whitespace-nowrap">
