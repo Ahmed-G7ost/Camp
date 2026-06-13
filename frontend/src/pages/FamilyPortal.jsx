@@ -15,6 +15,7 @@ import {
   Trash2,
   LogOut,
   Inbox,
+  ShieldAlert,
 } from "lucide-react";
 
 const EMPTY_MEMBER = {
@@ -54,6 +55,8 @@ export default function FamilyPortal() {
       setFamily(familyRes.data || {});
       setEditData(familyRes.data?.data || {});
       setMembers(membersRes.data || []);
+      // أول دخول للعائلة: افتح وضع التعديل الكامل تلقائياً
+      if (familyRes.data && !familyRes.data.profile_completed) setEditing(true);
     } catch (err) {
       console.error("خطأ في تحميل البيانات:", err);
       toast.error(err.message || "فشل تحميل البيانات");
@@ -76,9 +79,17 @@ export default function FamilyPortal() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      await api.put(`/families/${user.family_id}`, { data: editData });
-      toast.success("تم حفظ التعديلات بنجاح");
-      setFamily({ ...family, data: editData });
+            const wasFirstEdit = family && !family.profile_completed;
+      await api.put(`/families/${user.family_id}`, {
+        data: editData,
+        ...(wasFirstEdit ? { profile_completed: true } : {}),
+      });
+      toast.success(
+        wasFirstEdit
+          ? "تم حفظ بياناتك بنجاح. أصبح التعديل الآن محدوداً."
+          : "تم حفظ التعديلات بنجاح"
+      );
+      setFamily({ ...family, data: editData, ...(wasFirstEdit ? { profile_completed: true } : {}) });
       setEditing(false);
       await loadData();
     } catch (err) {
@@ -196,6 +207,7 @@ export default function FamilyPortal() {
   );
 
   const familyName = family?.data?.[fields[0]?.key] || "عائلتي";
+  const isFirstEdit = !family?.profile_completed;
 
   return (
     <div className="min-h-screen pb-12">
@@ -219,6 +231,37 @@ export default function FamilyPortal() {
           </div>
         </div>
 
+        {/* تنبيه أول دخول — تعديل كامل لمرة واحدة */}
+        {isFirstEdit && (
+          <div
+            data-testid="first-edit-banner"
+            className="relative overflow-hidden rounded-3xl p-5 sm:p-6 animate-fade-up border border-amber-300/70 shadow-xl shadow-amber-500/15"
+            style={{ background: "linear-gradient(135deg,#fffbeb 0%,#fef3c7 55%,#fde68a 100%)" }}
+          >
+            <div className="absolute -left-6 -top-10 w-36 h-36 rounded-full bg-amber-400/20" />
+            <div className="absolute left-12 -bottom-12 w-28 h-28 rounded-full bg-orange-400/10" />
+            <div className="relative flex items-start gap-4">
+              <div className="w-12 h-12 shrink-0 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-md shadow-amber-600/30">
+                <ShieldAlert className="w-6 h-6 text-white" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-lg font-cairo font-extrabold text-amber-900 mb-1.5">
+                  تنبيه هام — هذه هي المرة الأولى لدخولك
+                </h3>
+                <p className="text-amber-800/90 font-tajawal leading-relaxed text-sm sm:text-[15px]">
+                  يمكنك الآن تعديل{" "}
+                  <span className="font-extrabold text-amber-900">جميع معلوماتك بالكامل</span>.
+                  بعد الحفظ لأول مرة ستُقفل أغلب الحقول ويصبح التعديل{" "}
+                  <span className="font-extrabold text-amber-900">محدوداً</span>، لذا يُرجى إدخال
+                  بياناتك{" "}
+                  <span className="font-extrabold text-amber-900">بدقّة</span> والتأكد من صحتها قبل
+                  الحفظ.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* بيانات العائلة */}
         <section className="glass-card rounded-3xl p-6 animate-fade-up" data-testid="family-data-card">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
@@ -265,7 +308,7 @@ export default function FamilyPortal() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
             {fields.map((field) => {
               const value = family?.data?.[field.key] || "—";
-              const isEditable = editableFields.some((f) => f.key === field.key);
+              const isEditable = isFirstEdit || editableFields.some((f) => f.key === field.key);
               const isDateField =
                 field.label.includes("تاريخ") ||
                 field.label.includes("ميلاد") ||
