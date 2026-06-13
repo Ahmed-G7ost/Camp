@@ -36,6 +36,7 @@ export default function Families() {
   const [previewing, setPreviewing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);   // single family id
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false); // bulk delete
+  const [confirmUnlock, setConfirmUnlock] = useState(null);   // family to re-open full edit
 
   const { data: fields = [] } = useQuery({
     queryKey: ["fields"],
@@ -321,6 +322,10 @@ export default function Families() {
                           className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"><Eye className="w-4 h-4" /></button>
                         <button onClick={() => setModal({ mode: "edit", family: fam })} data-testid={`edit-family-${fam.id}`} title="تعديل"
                           className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"><Pencil className="w-4 h-4" /></button>
+                        {isAdmin && fam.profile_completed && (
+                          <button onClick={() => setConfirmUnlock(fam)} data-testid={`unlock-family-${fam.id}`} title="فتح التعديل الكامل"
+                            className="p-2 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors"><LockOpen className="w-4 h-4" /></button>
+                        )}
                         <button onClick={() => setConfirmDelete(fam.id)} data-testid={`delete-family-${fam.id}`} title="حذف"
                           className="p-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors"><Trash2 className="w-4 h-4" /></button>
                       </div>
@@ -368,6 +373,18 @@ export default function Families() {
         type="danger"
         onConfirm={() => { delAllMut.mutate(); setConfirmDeleteAll(false); }}
         onCancel={() => setConfirmDeleteAll(false)}
+      />
+
+      {/* Re-open full edit confirm (admin) */}
+      <ConfirmDialog
+        isOpen={!!confirmUnlock}
+        title="فتح التعديل الكامل"
+        message="سيُسمح لهذه العائلة بتعديل جميع بياناتها مجدداً عند دخولها القادم. هل تريد المتابعة؟"
+        confirmLabel="نعم، افتح التعديل"
+        cancelLabel="إلغاء"
+        type="info"
+        onConfirm={() => { unlockMut.mutate(confirmUnlock); setConfirmUnlock(null); }}
+        onCancel={() => setConfirmUnlock(null)}
       />
     </div>
   );
