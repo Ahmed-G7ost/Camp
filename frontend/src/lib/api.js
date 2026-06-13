@@ -640,7 +640,10 @@ async function handle(method, path, params, body) {
   if (seg[0] === "families" && seg.length === 2 && method === "PUT") {
     requireAuth();
     if (!(await getRecord("families", seg[1]))) throw httpError(404, "العائلة غير موجودة");
-    await updateRecord("families", seg[1], { data: body.data, updated_at: nowIso() });
+    const patch = { data: body.data, updated_at: nowIso() };
+    // علامة "اكتمل أول تعديل" — بعد ضبطها يصبح تعديل العائلة محدوداً
+    if (typeof body.profile_completed === "boolean") patch.profile_completed = body.profile_completed;
+    await updateRecord("families", seg[1], patch);
     return getRecord("families", seg[1]);
   }
   if (seg[0] === "families" && seg.length === 2 && method === "DELETE") {
