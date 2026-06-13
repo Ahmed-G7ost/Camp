@@ -10,7 +10,7 @@ import { NameBadge, GenderBadge, isGenderField, isNameField, ColorName } from ".
 import {
   Plus, Search, Loader2, Users, Pencil, Trash2, Eye,
   Upload, Download, FileSpreadsheet, X, Settings,
-  ArrowLeftRight, ListChecks, HandHeart, Trash, ArrowDownAZ, ArrowUpAZ, SlidersHorizontal,
+  ArrowLeftRight, ListChecks, HandHeart, Trash, ArrowDownAZ, ArrowUpAZ, SlidersHorizontal, LockOpen,
 } from "lucide-react";
 
 async function downloadFile(url, filename) {
@@ -62,6 +62,16 @@ export default function Families() {
       qc.invalidateQueries({ queryKey: ["families"] });
       qc.invalidateQueries({ queryKey: ["stats"] });
       toast.success("تم حذف العائلة بنجاح");
+    },
+    onError: (e) => toast.error(apiError(e.response?.data?.detail)),
+  });
+  
+  // إعادة فتح "التعديل الكامل" لعائلة (يسمح لها بتعديل كل بياناتها مجدداً عند دخولها)
+  const unlockMut = useMutation({
+    mutationFn: (fam) => api.put(`/families/${fam.id}`, { data: fam.data || {}, profile_completed: false }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["families"] });
+      toast.success("تم فتح التعديل الكامل لهذه العائلة. ستتمكن من تعديل كل بياناتها عند دخولها القادم.");
     },
     onError: (e) => toast.error(apiError(e.response?.data?.detail)),
   });
