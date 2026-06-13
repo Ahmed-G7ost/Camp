@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Login from "./pages/Login";
+import FamilyLogin from "./pages/FamilyLogin";
 import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
 import Families from "./pages/Families";
@@ -33,6 +34,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/family-login" element={<FamilyLogin />} />
       <Route path="/family-portal" element={<FamilyPortal />} />
       <Route
         path="/"

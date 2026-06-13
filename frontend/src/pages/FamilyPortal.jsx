@@ -70,7 +70,7 @@ export default function FamilyPortal() {
 
   useEffect(() => {
     if (!user || user.role !== "family") {
-      navigate("/login");
+      navigate("/family-login");
       return;
     }
     loadData();

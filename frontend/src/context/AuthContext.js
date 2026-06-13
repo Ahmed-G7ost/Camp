@@ -36,9 +36,10 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
+    const dest = user && user.role === "family" ? "/family-login" : "/login";
     localStorage.removeItem("camp_token");
     setUser(false);
-    window.location.href = "/login";
+    window.location.href = dest;
   };
 
   return (
